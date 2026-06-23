@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; }
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -246,6 +246,25 @@
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
+        // 【例外ハードコーディングルール】
+        // マスタとの紐付けが失敗する代表的な特殊地名を強制的に正しい細分区域名にマッピングします
+        if (prefName === "東京都") {
+            if (addrName.includes("大島町") || addrName.includes("利島村") || addrName.includes("新島村") || 
+                addrName.includes("三宅村") || addrName.includes("御蔵島村") || addrName.includes("青ヶ島村") || 
+                addrName.includes("八丈町")) {
+                return "伊豆諸島";
+            }
+            if (addrName.includes("小笠原村")) {
+                return "小笠原諸島";
+            }
+            if (addrName.includes("東京国際空港") || addrName.includes("羽田")) {
+                return "東京都２３区";
+            }
+        }
+        if (prefName === "千葉県" && (addrName.includes("成田国際空港") || addrName.includes("成田空港"))) {
+            return "千葉県北東部";
+        }
+
         const prefMaster = cityToSaibunMap[prefName];
         if (!prefMaster) {
             console.warn(`[マスタ未登録の都道府県] API送出: "${prefName}" (観測点: ${addrName})`);
@@ -255,12 +274,11 @@
         // 1. 完全一致チェック
         if (prefMaster[addrName]) return prefMaster[addrName];
 
-        // 2. 「東京利島村」や「静岡菊川市」などの頭につく都道府県名の除去処理
+        // 2. 頭につく都道府県名の除去処理
         let cleanedAddr = addrName;
         if (addrName.startsWith(prefName)) {
             cleanedAddr = addrName.substring(prefName.length);
         } else {
-            // 省略形（例: 東京都→「東京」）の除去
             const shortPref = prefName.replace(/[都府県]$/, '');
             if (addrName.startsWith(shortPref)) {
                 cleanedAddr = addrName.substring(shortPref.length);
@@ -273,7 +291,7 @@
         
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
 
-        // 4. 双方向の部分一致・包含チェック（「大島町」と「伊豆大島町」の相互対応など）
+        // 4. 双方向の部分一致・包含チェック
         for (const cityKey in prefMaster) {
             if (cleanedAddr.endsWith(cityKey) || 
                 baseCityName === cityKey || 
