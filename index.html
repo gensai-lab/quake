@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; }
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -128,19 +128,20 @@
         zoomControl: false,
         attributionControl: false,
         minZoom: 2,
-        maxZoom: 10
+        maxZoom: 12
     }).setView([36.5, 138.0], 5);
 
+    // 優先度（重なり順）マッピング: 7が最大(最前面)、1が最小、震源は一番下
     const intensityMap = {
-        "10": { banner: "b1.svg", icon: "s1.svg" },
-        "20": { banner: "b2.svg", icon: "s2.svg" },
-        "30": { banner: "b3.svg", icon: "s3.svg" },
-        "40": { banner: "b4.svg", icon: "s4.svg" },
-        "45": { banner: "b5m.svg", icon: "s5m.svg" },
-        "50": { banner: "b5p.svg", icon: "s5p.svg" },
-        "55": { banner: "b6m.svg", icon: "s6m.svg" },
-        "60": { banner: "b6p.svg", icon: "s6p.svg" },
-        "70": { banner: "b7.svg", icon: "s7.svg" }
+        "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 110 },
+        "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 120 },
+        "30": { banner: "b3.svg", icon: "s3.svg", zIndex: 130 },
+        "40": { banner: "b4.svg", icon: "s4.svg", zIndex: 140 },
+        "45": { banner: "b5m.svg", icon: "s5m.svg", zIndex: 150 },
+        "50": { banner: "b5p.svg", icon: "s5p.svg", zIndex: 160 },
+        "55": { banner: "b6m.svg", icon: "s6m.svg", zIndex: 170 },
+        "60": { banner: "b6p.svg", icon: "s6p.svg", zIndex: 180 },
+        "70": { banner: "b7.svg", icon: "s7.svg", zIndex: 190 }
     };
 
     const tsunamiMap = {
@@ -210,14 +211,12 @@
         try {
             const obsRes = await fetch('assets/震度観測点.csv');
             cityToSaibunMap = parseObservationCSV(await obsRes.text());
-            console.log("解析されたマスタデータ構造:", cityToSaibunMap);
         } catch (e) { console.error("震度観測点CSV読込失敗:", e); }
 
         try {
             const saibunRes = await fetch('assets/map/saibun.json');
             const saibunData = await saibunRes.json();
             
-            // saibun.jsonのプロパティ読み込み処理を大幅に強化（表記揺れや空白対策）
             saibunData.features.forEach(f => {
                 if (f.properties) {
                     const rawName = f.properties.name || f.properties.NAME || f.properties.name_ja;
@@ -254,9 +253,9 @@
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
-        // 【例外ハードコーディングルール】「伊豆諸島」に綺麗に戻しました
+        // 【例外ルール強化】大島町・伊豆大島町どちらでも伊豆諸島へ
         if (prefName === "東京都") {
-            if (addrName.includes("大島町") || addrName.includes("利島村") || addrName.includes("新島村") || 
+            if (addrName.includes("大島") || addrName.includes("利島村") || addrName.includes("新島村") || 
                 addrName.includes("神津島村") || addrName.includes("三宅村") || addrName.includes("御蔵島村") ||
                 addrName.includes("青ヶ島村") || addrName.includes("八丈町")) {
                 return "伊豆諸島"; 
@@ -273,15 +272,10 @@
         }
 
         const prefMaster = cityToSaibunMap[prefName];
-        if (!prefMaster) {
-            console.warn(`[マスタ未登録の都道府県] API送出: "${prefName}" (観測点: ${addrName})`);
-            return null;
-        }
+        if (!prefMaster) return null;
 
-        // 1. 完全一致チェック
         if (prefMaster[addrName]) return prefMaster[addrName];
 
-        // 2. 頭につく都道府県名の除去処理
         let cleanedAddr = addrName;
         if (addrName.startsWith(prefName)) {
             cleanedAddr = addrName.substring(prefName.length);
@@ -292,13 +286,11 @@
             }
         }
 
-        // 3. 市町村・空港レベルでの切り出し
         const match = cleanedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
         const baseCityName = match ? match[0] : cleanedAddr;
         
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
 
-        // 4. 双方向の部分一致・包含チェック
         for (const cityKey in prefMaster) {
             if (cleanedAddr.endsWith(cityKey) || 
                 baseCityName === cityKey || 
@@ -307,8 +299,6 @@
                 return prefMaster[cityKey];
             }
         }
-
-        console.warn(`[市町村マッピング失敗] 都道府県: "${prefName}", API送出市町村: "${addrName}" (判定ベース: "${baseCityName}")`);
         return null;
     }
 
@@ -374,10 +364,12 @@
         if (await checkEEW(earth.time)) document.getElementById('banner-eew').classList.remove('dimmed');
         else document.getElementById('banner-eew').classList.add('dimmed');
 
+        // 震源アイコンの配置（zIndexOffset: 100 で最背面になるように設定）
         if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
             boundsPoints.push([earth.hypocenter.latitude, earth.hypocenter.longitude]);
             L.marker([earth.hypocenter.latitude, earth.hypocenter.longitude], {
-                icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] })
+                icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] }),
+                zIndexOffset: 100 
             }).addTo(map);
         }
 
@@ -391,33 +383,39 @@
             const saibunName = convertToSaibunNameWithPref(prefName, addrName);
 
             if (saibunName) {
-                // ここでもトリムした状態で一致チェック
                 const targetKey = saibunName.trim();
                 if (saibunFeatures[targetKey]) {
                     if (!saibunMaxScale[targetKey] || scale > saibunMaxScale[targetKey]) {
                         saibunMaxScale[targetKey] = scale;
                     }
-                } else {
-                    console.error(`[GeoJSON不一致] 細分区域 "${targetKey}" が saibun.json の中に見つかりません。`);
                 }
             }
         });
 
+        // 各細分区域に震度ピンをマッピング
         for (const saibunName in saibunMaxScale) {
             const finalScale = saibunMaxScale[saibunName];
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
                 boundsPoints.push(center);
+                
+                // zIndexOffset に intensityMap の定義値 (110〜190) を適用
                 L.marker(center, {
-                    icon: L.divIcon({ className: 'intensity-icon', html: `<img src="assets/icons/${intensityMap[finalScale].icon}" alt="震度${finalScale}">`, iconSize: [50, 50], iconAnchor: [25, 25] })
+                    icon: L.divIcon({ className: 'intensity-icon', html: `<img src="assets/icons/${intensityMap[finalScale].icon}" alt="震度${finalScale}">`, iconSize: [50, 50], iconAnchor: [25, 25] }),
+                    zIndexOffset: intensityMap[finalScale].zIndex
                 }).addTo(map);
             }
         }
 
+        // 自動ズームの倍率と表示余白を最適化
         if (isEnchi) {
             map.setView([20, 140], 3);
         } else if (boundsPoints.length > 0) {
-            map.fitBounds(L.latLngBounds(boundsPoints), { paddingTopLeft: [50, 220], paddingBottomRight: [50, 50], maxZoom: 8 });
+            map.fitBounds(L.latLngBounds(boundsPoints), { 
+                paddingTopLeft: [40, 200],  // ヘッダーを避ける絶妙な余白に詰め
+                paddingBottomRight: [40, 40], 
+                maxZoom: 10                 // 最大ズームレベルを上げてより大きく拡大
+            });
         }
     }
 
