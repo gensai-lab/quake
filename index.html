@@ -214,8 +214,36 @@
 
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
+    let shingenMaster = {}; // CSVから解析したマスタ
+
+    // CSVファイルを解析するカスタム関数
+    function parseCSV(csvText) {
+        const lines = csvText.split(/\r?\n/);
+        const result = {};
+        
+        // 見出し行(0番目)を飛ばして、2行目からループ
+        for (let i = 1; i < lines.length; i++) {
+            if (!lines[i]) continue;
+            const cols = lines[i].split(',');
+            if (cols.length >= 2) {
+                const name = cols[0].trim();
+                const isTrue = cols[1].trim().toUpperCase() === 'TRUE';
+                result[name] = isTrue;
+            }
+        }
+        return result;
+    }
 
     async function loadGeoJSON() {
+        try {
+            // 0. 震央マスタCSVの読み込みとパース
+            const csvRes = await fetch('assets/震央.csv');
+            const csvText = await csvRes.text();
+            shingenMaster = parseCSV(csvText);
+        } catch (e) {
+            console.error("震央CSVの読み込みに失敗しました:", e);
+        }
+
         try {
             // 1. 細分区域をベースとして描画（塗りつぶし・線色を適用）
             const saibunRes = await fetch('assets/map/saibun.json');
@@ -229,10 +257,10 @@
 
             saibunLayer = L.geoJSON(saibunData, {
                 style: { 
-                    color: "#A6A6A6",       // 細分区域の線色
+                    color: "#A6A6A6", 
                     weight: 0.8, 
-                    fillColor: "#BFBFBF",   // 細分区域の塗りつぶし色
-                    fillOpacity: 1.0        // 不透明度100%
+                    fillColor: "#BFBFBF", 
+                    fillOpacity: 1.0 
                 }
             }).addTo(map);
 
@@ -241,9 +269,9 @@
             const prefData = await prefRes.json();
             prefLayer = L.geoJSON(prefData, {
                 style: { 
-                    color: "#595959",       // 都道府県の線色
+                    color: "#595959", 
                     weight: 1.8, 
-                    fillColor: "none",      // 塗りつぶしなし
+                    fillColor: "none", 
                     fillOpacity: 0 
                 }
             }).addTo(map);
@@ -253,9 +281,9 @@
             const shionumaData = await shionumaRes.json();
             shionumaLayer = L.geoJSON(shionumaData, {
                 style: { 
-                    color: "none",          // 線なし
+                    color: "none", 
                     weight: 0,
-                    fillColor: "#143264",   // 潮沼の塗りつぶし色（地図背景と同色）
+                    fillColor: "#143264", 
                     fillOpacity: 1.0 
                 }
             }).addTo(map);
@@ -298,6 +326,7 @@
     function renderEarthquake(eq) {
         const earth = eq.earthquake;
         const points = eq.points || [];
+        const hypocenterName = earth.hypocenter.name || "震源不詳";
 
         // 時刻のパース
         if (earth.time) {
@@ -309,7 +338,7 @@
             }
         }
         
-        document.getElementById('val-hypocenter').innerText = earth.hypocenter.name || "震源不詳";
+        document.getElementById('val-hypocenter').innerText = hypocenterName;
         document.getElementById('val-magnitude').innerText = earth.hypocenter.magnitude === -1 ? "Ｍ不定" : `Ｍ${earth.hypocenter.magnitude}`;
         
         let depthStr = "ごく浅い";
@@ -337,12 +366,15 @@
         const enchiDom = document.getElementById('banner-enchi');
         const eewDom = document.getElementById('banner-eew');
 
-        // 遠地地震の判定
-        if (earth.hypocenter.name.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0) {
-            enchiDom.classList.remove('dimmed');
-            map.setView([20, 140], 3);
+        // --- CSV対応判定ロジック ---
+        // CSVマスタから読み込んだオブジェクトを照合（部分一致対策含む）
+        const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0;
+
+        if (isEnchi) {
+            enchiDom.classList.remove('dimmed'); // クッキリ
+            map.setView([20, 140], 3);           // 遠地用の広域マップ
         } else {
-            enchiDom.classList.add('dimmed');
+            enchiDom.classList.add('dimmed');    // うっすら
         }
 
         eewDom.classList.add('dimmed');
@@ -357,7 +389,7 @@
             });
             L.marker([earth.hypocenter.latitude, earth.hypocenter.longitude], { icon: epicenterIcon }).addTo(map);
             
-            if (!earth.hypocenter.name.includes("遠地")) {
+            if (!isEnchi) {
                 map.panTo([earth.hypocenter.latitude, earth.hypocenter.longitude]);
             }
         }
