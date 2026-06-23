@@ -34,19 +34,17 @@
             background: #0b132b;
         }
 
-        /* 上部ヘッダー（assets/back.svg を背景に指定） */
+        /* 上部ヘッダー（back.svgを横幅100%の背景として表示） */
         #header-container {
             position: absolute;
             top: 0;
             left: 0;
-            width: 1920px;
+            width: 100%; /* 横幅100%に設定 */
             height: 150px;
             background-image: url('assets/back.svg');
-            background-size: cover;
+            background-size: 100% 100%; /* 横幅いっぱいにフィット */
             background-repeat: no-repeat;
             z-index: 1000;
-            display: flex;
-            align-items: center;
         }
 
         /* 左上 震度バナーエリア */
@@ -60,28 +58,42 @@
             background-repeat: no-repeat;
         }
 
-        /* 動的テキスト情報エリア */
-        #info-text-area {
+        /* -------------------------------------------
+           【個別調整エリア】文字の位置・サイズを自由に変更できます
+           ------------------------------------------- */
+        .info-text-base {
             position: absolute;
-            left: 510px;
-            top: 0;
-            height: 150px;
-            width: 1000px;
             color: #ffffff;
-            display: flex;
-            align-items: center;
-            gap: 40px;
-        }
-
-        .info-item {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .info-value {
-            font-size: 38px;
             font-weight: bold;
+            white-space: nowrap;
+        }
+
+        /* 発生時刻 */
+        #val-time {
+            font-size: 42px;
+            left: 640px;
+            top: 22px;
+        }
+
+        /* 震源 */
+        #val-hypocenter {
+            font-size: 42px;
+            left: 640px;
+            top: 82px;
+        }
+
+        /* 規模 (マグニチュード) */
+        #val-magnitude {
+            font-size: 45px;
+            left: 1220px;
+            top: 20px;
+        }
+
+        /* 深さ */
+        #val-depth {
+            font-size: 42px;
+            left: 1220px;
+            top: 82px;
         }
 
         /* 右上 ステータスバナーエリア */
@@ -96,9 +108,15 @@
         .status-banner {
             height: 55px;
             object-fit: contain;
+            transition: opacity 0.3s ease;
         }
 
-        /* カスタム震度アイコンスタイル */
+        /* 非表示状態でも透明度0.1でうっすら表示させるスタイル */
+        .status-banner.dimmed {
+            opacity: 0.1 !important;
+        }
+
+        /* カスタムアイコンスタイル */
         .intensity-icon {
             background: none;
             border: none;
@@ -107,6 +125,17 @@
             width: 50px;
             height: 50px;
             filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6));
+        }
+
+        /* 震源地アイコン（shingen.png用） */
+        .epicenter-icon {
+            background: none;
+            border: none;
+        }
+        .epicenter-icon img {
+            width: 60px;
+            height: 60px;
+            filter: drop-shadow(0px 0px 8px rgba(255, 0, 0, 0.8));
         }
     </style>
 </head>
@@ -118,25 +147,15 @@
     <div id="header-container">
         <div id="max-intensity-banner"></div>
         
-        <div id="info-text-area">
-            <div class="info-item">
-                <span class="info-value" id="val-time">--日 --時--分ごろ</span>
-            </div>
-            <div class="info-item">
-                <span class="info-value" id="val-hypocenter">調査中</span>
-            </div>
-            <div class="info-item">
-                <span class="info-value" id="val-magnitude">--</span>
-            </div>
-            <div class="info-item">
-                <span class="info-value" id="val-depth">--</span>
-            </div>
-        </div>
+        <div id="val-time" class="info-text-base">--日 --時--分ごろ</div>
+        <div id="val-hypocenter" class="info-text-base">調査中</div>
+        <div id="val-magnitude" class="info-text-base">--</div>
+        <div id="val-depth" class="info-text-base">--</div>
 
         <div id="status-banners">
-            <img id="banner-tsunami" class="status-banner" src="assets/banner/t1.svg" alt="津波情報">
-            <img id="banner-eew" class="status-banner" src="assets/banner/eew.svg" alt="EEW" style="display: none;">
-            <img id="banner-enchi" class="status-banner" src="assets/banner/enchi.svg" alt="遠地" style="display: none;">
+            <img id="banner-tsunami" class="status-banner" src="assets/banner/t2.svg" alt="津波情報">
+            <img id="banner-eew" class="status-banner dimmed" src="assets/banner/eew.svg" alt="EEW">
+            <img id="banner-enchi" class="status-banner dimmed" src="assets/banner/enchi.svg" alt="遠地">
         </div>
     </div>
 </div>
@@ -160,18 +179,17 @@
         attributionControl: false,
         minZoom: 2,
         maxZoom: 10
-    }).setView([36.5, 138.0], 5); // デフォルトは日本中心
+    }).setView([36.5, 138.0], 5);
 
-    // 震度・津波の各種マッピング設定
     const intensityMap = {
         "10": { banner: "b1.svg", icon: "s1.svg" },
         "20": { banner: "b2.svg", icon: "s2.svg" },
         "30": { banner: "b3.svg", icon: "s3.svg" },
         "40": { banner: "b4.svg", icon: "s4.svg" },
-        "45": { banner: "b5m.svg", icon: "s5m.svg" }, // 5弱
-        "50": { banner: "b5p.svg", icon: "s5p.svg" }, // 5強
-        "55": { banner: "b6m.svg", icon: "s6m.svg" }, // 6弱
-        "60": { banner: "b6p.svg", icon: "s6p.svg" }, // 6強
+        "45": { banner: "b5m.svg", icon: "s5m.svg" },
+        "50": { banner: "b5p.svg", icon: "s5p.svg" },
+        "55": { banner: "b6m.svg", icon: "s6m.svg" },
+        "60": { banner: "b6p.svg", icon: "s6p.svg" },
         "70": { banner: "b7.svg", icon: "s7.svg" }
     };
 
@@ -184,34 +202,26 @@
         "Warning": "t4.svg"
     };
 
-    // GeoJSONレイヤー用変数
     let saibunLayer, prefLayer, shionumaLayer;
-
-    // 各種マッピング用の重心データ（細分区域用）
     let saibunFeatures = {};
 
-    // 1. GeoJSONデータの読み込み
     async function loadGeoJSON() {
         try {
-            // 都道府県
             const prefRes = await fetch('assets/map/pref.json');
             const prefData = await prefRes.json();
             prefLayer = L.geoJSON(prefData, {
                 style: { color: "#4a5568", weight: 1.5, fillOpacity: 0.1, fillColor: "#1a202c" }
             }).addTo(map);
 
-            // 潮沼
             const shionumaRes = await fetch('assets/map/shionuma.json');
             const shionumaData = await shionumaRes.json();
             shionumaLayer = L.geoJSON(shionumaData, {
                 style: { color: "#2b6cb0", weight: 1, fillOpacity: 0.2, fillColor: "#2b6cb0" }
             }).addTo(map);
 
-            // 細分区域
             const saibunRes = await fetch('assets/map/saibun.json');
             const saibunData = await saibunRes.json();
             
-            // 後で震度アイコンをプロットするためにオブジェクト化
             saibunData.features.forEach(f => {
                 if (f.properties && f.properties.name) {
                     saibunFeatures[f.properties.name] = f;
@@ -227,21 +237,17 @@
         }
     }
 
-    // 多角形（Polygon/MultiPolygon）の重心または代表点を簡易計算
     function getFeatureCenter(feature) {
         if (feature.geometry.type === "Point") {
             return feature.geometry.coordinates;
         }
-        // Leafletのレイヤー化を利用して境界の中心を取得
         const tempLayer = L.geoJSON(feature);
         return tempLayer.getBounds().getCenter();
     }
 
-    // 2. P2P地震情報APIからデータ取得・描画
     async function fetchQuakeData() {
         const urlParams = new URLSearchParams(window.location.search);
         const targetId = urlParams.get('id');
-        
         const apiUrl = "https://api.p2pquake.net/v2/history?codes=551&limit=30";
         
         try {
@@ -249,7 +255,6 @@
             const data = await response.json();
             if (!data || data.length === 0) return;
 
-            // 特定IDの指定があればそれを選択、なければ最新(0番目)を選択
             let eq = data[0];
             if (targetId) {
                 const found = data.find(item => item.id === targetId);
@@ -262,13 +267,11 @@
         }
     }
 
-    // 3. 地震データのレンダリング
     function renderEarthquake(eq) {
         const earth = eq.earthquake;
         const points = eq.points || [];
 
-        // --- ヘッダー情報の更新 ---
-        // 発生時刻のパース (YYYY/MM/DD HH:mm:ss -> DD日 HH時mm分ごろ)
+        // 時刻のパース
         if (earth.time) {
             const t = earth.time.split(' ');
             if (t.length >= 2) {
@@ -286,7 +289,6 @@
         if (earth.hypocenter.depth === -1) depthStr = "深さ不明";
         document.getElementById('val-depth').innerText = depthStr;
 
-        // --- バナーコントロール ---
         // 最大震度バナー
         const maxInt = earth.maxScale;
         const bannerContainer = document.getElementById('max-intensity-banner');
@@ -301,38 +303,42 @@
         const domesticTsunami = earth.domesticTsunami || "None";
         if (tsunamiMap[domesticTsunami]) {
             tsunamiDom.src = `assets/banner/${tsunamiMap[domesticTsunami]}`;
-            tsunamiDom.style.display = "block";
         }
 
-        // 遠地地震判定（震源地が遠地、または国内の最大震度が設定されていない等）
+        // 遠地バナーとEEWバナーの透明度コントロール
         const enchiDom = document.getElementById('banner-enchi');
+        const eewDom = document.getElementById('banner-eew'); // 今回は常時うっすら、条件でクッキリ
+
+        // 遠地地震の判定
         if (earth.hypocenter.name.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0) {
-            enchiDom.style.display = "block";
-            // 遠地の場合は世界地図が見えるようにズームアウト
+            enchiDom.classList.remove('dimmed'); // クッキリ表示(1.0)
             map.setView([20, 140], 3);
         } else {
-            enchiDom.style.display = "none";
+            enchiDom.classList.add('dimmed');    // うっすら表示(0.1)
         }
 
-        // --- 震央マッピング (X印) ---
+        // P2P地震情報のコード551（確定報）自体にはEEWフラグが含まれないため、
+        // 現状は常にうっすら（0.1）表示させています。必要に応じてロジックを拡張可能です。
+        eewDom.classList.add('dimmed');
+
+        // --- 震央マッピング (shingen.png を使用) ---
         if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
             const epicenterIcon = L.divIcon({
-                className: 'epicenter-mark',
-                html: `<b style="color:#ff0000; font-size:42px; text-shadow: 0 0 6px #fff, 0 0 6px #fff;">×</b>`,
-                iconSize: [40, 40],
-                iconAnchor: [20, 26]
+                className: 'epicenter-icon',
+                html: `<img src="assets/icons/shingen.png" alt="震源地">`,
+                iconSize: [60, 60],
+                iconAnchor: [30, 30] // 中心を軸にする
             });
             L.marker([earth.hypocenter.latitude, earth.hypocenter.longitude], { icon: epicenterIcon }).addTo(map);
             
-            // 遠地でなければ震源地を中心にフィット
             if (!earth.hypocenter.name.includes("遠地")) {
                 map.panTo([earth.hypocenter.latitude, earth.hypocenter.longitude]);
             }
         }
 
-        // --- 震度アイコンのマッピング ---
+        // 震度アイコンのマッピング
         points.forEach(p => {
-            const saibunName = p.addr; // P2P地震情報の細分区域名
+            const saibunName = p.addr;
             const scale = p.scale;
 
             if (saibunFeatures[saibunName] && intensityMap[scale]) {
@@ -351,7 +357,6 @@
         });
     }
 
-    // 初期化シーケンス
     async function init() {
         await loadGeoJSON();
         await fetchQuakeData();
