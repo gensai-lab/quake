@@ -1,0 +1,69 @@
+name: Generate Earthquake Screenshot
+
+on:
+  repository_dispatch:
+    types: [quake_captured]
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Puppeteer and dependencies
+        run: |
+          npm install puppeteer
+          sudo apt-get update
+          sudo apt-get install -y libgbm-dev
+
+      - name: Capture Screenshot
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const puppeteer = require('puppeteer');
+            const fs = require('fs');
+            
+            // GASから送られてきた地震ID
+            const quakeId = context.payload.client_payload.id;
+            const targetUrl = `https://gensai-lab.github.io/quake/index.html?id=${quakeId}`;
+            
+            console.log(`Target URL: ${targetUrl}`);
+            
+            (async () => {
+              const browser = await puppeteer.launch({
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
+              });
+              const page = await browser.newPage();
+              
+              // 16:9 ターゲットサイズにビューポートを固定
+              await page.setViewport({ width: 1920, height: 1080 });
+              
+              // ページ読み込み完了とGeoJSON・API描画の猶予として待機
+              await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              
+              // 保存先フォルダの作成確認
+              const dir = './output';
+              if (!fs.existsSync(dir)){
+                  fs.mkdirSync(dir);
+              }
+              
+              // 画像の保存
+              await page.screenshot({ path: `${dir}/${quakeId}.png`, fullPage: false });
+              await browser.close();
+              console.log('Screenshot saved successfully.');
+            })();
+
+      - name: Commit and Push Screenshot
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add output/
+          git commit -m "Add earthquake screenshot for id: ${{ github.event.client_payload.id }}" || exit 0
+          git push
