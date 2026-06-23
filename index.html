@@ -43,13 +43,30 @@
             position: relative;
             width: 100%;
             height: 120px;
-            background: url('assets/back.svg') no-repeat center center;
-            background-size: cover;
-            display: flex;
-            align-items: center;
             z-index: 10;
             margin: 0;
             padding: 0;
+        }
+
+        /* 背景となるSVG（個別配置用） */
+        .header-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* ヘッダー内のコンテンツ用コンテナ（背景の上に重ねる） */
+        .header-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            z-index: 2;
         }
 
         /* 左側最大震度バナー */
@@ -57,15 +74,19 @@
             height: 100%;
             display: flex;
             align-items: center;
-            margin: 0;
-            padding: 0;
         }
         .max-shindo-banner img {
             height: 100%;
             object-fit: contain;
-            margin: 0;
-            padding: 0;
             display: block;
+        }
+
+        /* 文字テキストの絶対配置グループ */
+        .text-overlay-group {
+            position: relative;
+            height: 100%;
+            flex: 1;
+            /* ここに必要なフォントスタイルやベースを記述できます */
         }
 
         /* 右側補助バナーエリア */
@@ -74,16 +95,10 @@
             display: flex;
             align-items: center;
             height: 100%;
-            margin-top: 0;
-            margin-bottom: 0;
-            margin-right: 0;
-            padding: 0;
         }
         .right-banners img {
             height: 100%;
             object-fit: contain;
-            margin: 0;
-            padding: 0;
             display: block;
         }
 
@@ -104,14 +119,20 @@
 
     <div class="container">
         <header class="header-area">
-            <div class="max-shindo-banner">
-                <img id="banner-max-shindo" src="assets/banner/b0.svg" alt="最大震度">
-            </div>
+            <img class="header-background" src="assets/back.svg" alt="">
 
-            <div class="right-banners">
-                <img id="banner-tsunami" src="assets/banner/t1.svg" alt="津波情報">
-                <img id="banner-eew" src="assets/banner/eew.svg" alt="EEW" style="display: none;">
-                <img id="banner-enchi" src="assets/banner/enchi.svg" alt="遠地" style="display: none;">
+            <div class="header-content">
+                <div class="max-shindo-banner">
+                    <img id="banner-max-shindo" src="assets/banner/b0.svg" alt="最大震度">
+                </div>
+
+                <div class="text-overlay-group"></div>
+
+                <div class="right-banners">
+                    <img id="banner-tsunami" src="assets/banner/t1.svg" alt="津波情報">
+                    <img id="banner-eew" src="assets/banner/eew.svg" alt="EEW" style="display: none;">
+                    <img id="banner-enchi" src="assets/banner/enchi.svg" alt="遠地" style="display: none;">
+                </div>
             </div>
         </header>
 
