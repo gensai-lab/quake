@@ -39,7 +39,7 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 190px;
+            height: 189px;
             background-image: url('assets/back.svg');
             background-size: 100% 100%;
             background-repeat: no-repeat;
@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
+        .intensity-icon img { width: 50px; height: 50px; }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -130,6 +130,22 @@
         minZoom: 2,
         maxZoom: 12
     }).setView([36.5, 138.0], 5);
+
+    // 地図の線の幅やスタイルを管理する設定オブジェクト（ここを変更すると幅が変化します）
+    const mapStyles = {
+        saibun: {
+            weight: 1.2,         // 細分区域の線の幅（デフォルト: 0.8）
+            color: "#A6A6A6"
+        },
+        pref: {
+            weight: 1.8,         // 都道府県境界の線の幅（デフォルト: 1.8）
+            color: "#595959"
+        },
+        shionuma: {
+            weight: 0,           // 潮沼の線の幅（デフォルト: 0）
+            color: "none"
+        }
+    };
 
     // 優先度（重なり順）マッピング
     const intensityMap = {
@@ -227,16 +243,17 @@
                 }
             });
 
+            // mapStylesの設定を適用
             saibunLayer = L.geoJSON(saibunData, {
-                style: { color: "#A6A6A6", weight: 0.8, fillColor: "#BFBFBF", fillOpacity: 1.0 }
+                style: { color: mapStyles.saibun.color, weight: mapStyles.saibun.weight, fillColor: "#BFBFBF", fillOpacity: 1.0 }
             }).addTo(map);
 
             prefLayer = L.geoJSON(await (await fetch('assets/map/pref.json')).json(), {
-                style: { color: "#595959", weight: 1.8, fillColor: "none", fillOpacity: 0 }
+                style: { color: mapStyles.pref.color, weight: mapStyles.pref.weight, fillColor: "none", fillOpacity: 0 }
             }).addTo(map);
 
             shionumaLayer = L.geoJSON(await (await fetch('assets/map/shionuma.json')).json(), {
-                style: { color: "none", weight: 0, fillColor: "#143264", fillOpacity: 1.0 }
+                style: { color: mapStyles.shionuma.color, weight: mapStyles.shionuma.weight, fillColor: "#143264", fillOpacity: 1.0 }
             }).addTo(map);
         } catch (e) { console.error("GeoJSON読込失敗:", e); }
     }
@@ -254,10 +271,20 @@
         if (!prefName || !addrName) return null;
 
         if (prefName === "東京都") {
-            if (addrName.includes("大島") || addrName.includes("利島村") || addrName.includes("新島村") || 
-                addrName.includes("神津島村") || addrName.includes("三宅村") || addrName.includes("御蔵島村") ||
-                addrName.includes("青ヶ島村") || addrName.includes("八丈町")) {
-                return "伊豆諸島"; 
+            if (addrName.includes("大島町")) {
+                return "伊豆大島"; 
+            }
+            if (addrName.includes("利島村") || addrName.includes("新島村")) {
+                return "新島"; 
+            }
+            if (addrName.includes("神津島村")) {
+                return "神津島"; 
+            }
+            if (addrName.includes("三宅村") || addrName.includes("御蔵島村")) {
+                return "三宅島"; 
+            }
+            if (addrName.includes("八丈町") || addrName.includes("青ヶ島村")) {
+                return "八丈島"; 
             }
             if (addrName.includes("小笠原村")) {
                 return "小笠原諸島";
@@ -409,8 +436,6 @@
                 }).addTo(map);
 
                 // 【ズーム条件判定ロジック】
-                // 1. 最大震度が3以上(level>=3)なら、震度3以上のピンだけをズーム範囲に含める
-                // 2. 最大震度が2以下なら、すべての観測ピンをズーム範囲に含める
                 const currentLevel = intensityMap[finalScale].level;
                 if (maxScaleValue >= 3) {
                     if (currentLevel >= 3) {
@@ -426,29 +451,24 @@
         if (isEnchi) {
             map.setView([20, 140], 3);
         } else if (hasEpicenter) {
-            // ズーム対象のピンが存在する場合、それらが画面に入り、かつ震源が中央になるよう「点対称な仮想ピン」を生成
             if (zoomBoundsPoints.length > 0) {
                 let symmetricPoints = [];
                 zoomBoundsPoints.forEach(pt => {
-                    symmetricPoints.push([pt[0], pt[1]]); // 元のピン
+                    symmetricPoints.push([pt[0], pt[1]]); 
                     
-                    // 震源(epicenter)を挟んで真反対の位置（点対称の座標）を計算して追加
                     let diffLat = pt[0] - epicenterLat;
                     let diffLng = pt[1] - epicenterLng;
                     symmetricPoints.push([epicenterLat - diffLat, epicenterLng - diffLng]);
                 });
 
-                // 震源自身も範囲に含める
                 symmetricPoints.push([epicenterLat, epicenterLng]);
 
-                // 点対称化されたすべての範囲を包含させることで、結果的に震源地が完全に「画面の真ん中」に固定されます
                 map.fitBounds(L.latLngBounds(symmetricPoints), { 
-                    paddingTopLeft: [190, 40],  // 上部ヘッダー（190px）を綺麗に避ける絶妙な均等マージン
+                    paddingTopLeft: [190, 40],  
                     paddingBottomRight: [40, 40], 
                     maxZoom: 10
                 });
             } else {
-                // 万が一条件に合致するピンがゼロ（震度1〜2が数珠つなぎで最大3以上の地震など）の場合は震源地をドンピシャ中央へ
                 map.setView([epicenterLat, epicenterLng], 7);
             }
         }
