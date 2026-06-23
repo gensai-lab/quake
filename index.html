@@ -8,7 +8,8 @@
     <style>
         @font-face {
             font-family: 'UDKakugo';
-            src: url('assets/fonts/FOT-UDKakugo_LargePr6-DB.otf') format('opentype');
+            /* フォントファイルを FOT-UDKakugo_LargePr6-M.otf に変更 */
+            src: url('assets/fonts/FOT-UDKakugo_LargePr6-M.otf') format('opentype');
         }
 
         body {
@@ -61,6 +62,14 @@
             color: #ffffff;
             font-weight: 400;
             white-space: nowrap;
+            letter-spacing: 0.03em; /* 文字間隔を3%に設定 */
+        }
+
+        /* 「日」「時」「分ごろ」「約」の文字サイズを小さくする用 */
+        .unit-text {
+            font-size: 0.75em; /* 元の文字サイズ(46px)の約75%の大きさに縮小 */
+            margin-left: 2px;
+            margin-right: 2px;
         }
 
         #val-time { font-size: 46px; left: 630px; top: 0px; }
@@ -97,7 +106,7 @@
     <div id="header-container">
         <div id="max-intensity-banner"></div>
         
-        <div id="val-time" class="info-text-base">--日 --時--分ごろ</div>
+        <div id="val-time" class="info-text-base">--<span class="unit-text">日</span> --<span class="unit-text">時</span>--<span class="unit-text">分ごろ</span></div>
         <div id="val-hypocenter" class="info-text-base">調査中</div>
         <div id="val-magnitude" class="info-text-base">--</div>
         <div id="val-depth" class="info-text-base">--</div>
@@ -131,18 +140,18 @@
         maxZoom: 12
     }).setView([36.5, 138.0], 5);
 
-    // 地図の線の幅やスタイルを管理する設定オブジェクト（ここを変更すると幅が変化します）
+    // 地図の線の幅やスタイルを管理する設定オブジェクト
     const mapStyles = {
         saibun: {
-            weight: 1.2,         // 細分区域の線の幅（デフォルト: 0.8）
+            weight: 0.8,         // 細分区域の線の幅
             color: "#A6A6A6"
         },
         pref: {
-            weight: 1.8,         // 都道府県境界の線の幅（デフォルト: 1.8）
+            weight: 1.8,         // 都道府県境界の線の幅
             color: "#595959"
         },
         shionuma: {
-            weight: 0,           // 潮沼の線の幅（デフォルト: 0）
+            weight: 0,           // 潮沼の線の幅
             color: "none"
         }
     };
@@ -243,7 +252,6 @@
                 }
             });
 
-            // mapStylesの設定を適用
             saibunLayer = L.geoJSON(saibunData, {
                 style: { color: mapStyles.saibun.color, weight: mapStyles.saibun.weight, fillColor: "#BFBFBF", fillOpacity: 1.0 }
             }).addTo(map);
@@ -372,13 +380,20 @@
             if (t.length >= 2) {
                 const dateParts = t[0].split('/');
                 const timeParts = t[1].split(':');
-                document.getElementById('val-time').innerText = `${dateParts[2]}日 ${timeParts[0]}時${timeParts[1]}分ごろ`;
+                // 「日」「時」「分ごろ」をspan.unit-textで囲み、個別で小さくできるように設定
+                document.getElementById('val-time').innerHTML = `${dateParts[2]}<span class="unit-text">日</span> ${timeParts[0]}<span class="unit-text">時</span>${timeParts[1]}<span class="unit-text">分ごろ</span>`;
             }
         }
         
         document.getElementById('val-hypocenter').innerText = hypocenterName;
         document.getElementById('val-magnitude').innerText = earth.hypocenter.magnitude === -1 ? "Ｍ不定" : `Ｍ${earth.hypocenter.magnitude}`;
-        document.getElementById('val-depth').innerText = earth.hypocenter.depth > 0 ? `約${earth.hypocenter.depth}km` : (earth.hypocenter.depth === -1 ? "深さ不明" : "ごく浅い");
+        
+        // 深さの「約」をspan.unit-textで囲んで小さく設定
+        if (earth.hypocenter.depth > 0) {
+            document.getElementById('val-depth').innerHTML = `<span class="unit-text">約</span>${earth.hypocenter.depth}km`;
+        } else {
+            document.getElementById('val-depth').innerText = earth.hypocenter.depth === -1 ? "深さ不明" : "ごく浅い";
+        }
 
         const maxInt = earth.maxScale;
         document.getElementById('max-intensity-banner').style.backgroundImage = `url('assets/banner/${intensityMap[maxInt] ? intensityMap[maxInt].banner : 'b0.svg'}')`;
@@ -420,8 +435,6 @@
 
         // ズーム範囲計算用の座標リスト
         let zoomBoundsPoints = [];
-        
-        // 最大震度の情報を取得（条件分岐に利用）
         const maxScaleValue = intensityMap[maxInt] ? intensityMap[maxInt].level : 0;
 
         // 各細分区域に震度ピンをマッピング
@@ -435,7 +448,7 @@
                     zIndexOffset: intensityMap[finalScale].zIndex
                 }).addTo(map);
 
-                // 【ズーム条件判定ロジック】
+                // ズーム条件判定
                 const currentLevel = intensityMap[finalScale].level;
                 if (maxScaleValue >= 3) {
                     if (currentLevel >= 3) {
@@ -447,7 +460,7 @@
             }
         }
 
-        // ズーム処理（震源地を絶対中央に固定する計算）
+        // ズーム処理
         if (isEnchi) {
             map.setView([20, 140], 3);
         } else if (hasEpicenter) {
@@ -455,7 +468,6 @@
                 let symmetricPoints = [];
                 zoomBoundsPoints.forEach(pt => {
                     symmetricPoints.push([pt[0], pt[1]]); 
-                    
                     let diffLat = pt[0] - epicenterLat;
                     let diffLng = pt[1] - epicenterLng;
                     symmetricPoints.push([epicenterLat - diffLat, epicenterLng - diffLng]);
