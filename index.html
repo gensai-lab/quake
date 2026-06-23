@@ -214,14 +214,12 @@
 
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
-    let shingenMaster = {}; // CSVから解析したマスタ
+    let shingenMaster = {}; // CSVマスタ
 
     // CSVファイルを解析するカスタム関数
     function parseCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
-        
-        // 見出し行(0番目)を飛ばして、2行目からループ
         for (let i = 1; i < lines.length; i++) {
             if (!lines[i]) continue;
             const cols = lines[i].split(',');
@@ -236,7 +234,7 @@
 
     async function loadGeoJSON() {
         try {
-            // 0. 震央マスタCSVの読み込みとパース
+            // 0. 震央マスタCSVの読み込み
             const csvRes = await fetch('assets/震央.csv');
             const csvText = await csvRes.text();
             shingenMaster = parseCSV(csvText);
@@ -317,13 +315,40 @@
                 if (found) eq = found;
             }
 
-            renderEarthquake(eq);
+            // 551データを元に描画関数を実行
+            await renderEarthquake(eq);
         } catch (e) {
             console.error("APIの取得に失敗しました:", e);
         }
     }
 
-    function renderEarthquake(eq) {
+    // コード556(緊急地震速報)の履歴を取得し、対象の地震日時と重なっているか調べる関数
+    async function checkEEW(targetTimeStr) {
+        if (!targetTimeStr) return false;
+        try {
+            const eewRes = await fetch("https://api.p2pquake.net/v2/history?codes=556&limit=10");
+            const eewData = await eewRes.json();
+            if (!eewData || eewData.length === 0) return false;
+
+            // 分単位まで一致するか判定するため「YYYY/MM/DD HH:mm」形式にトリミング
+            // 例: "2026/06/23 15:40:22" -> "2026/06/23 15:40"
+            const targetMinute = targetTimeStr.substring(0, 16);
+
+            // 556データ内に日時（分単位）が完全に重なるものがあるか検索
+            return eewData.some(eew => {
+                if (eew.earthquake && eew.earthquake.time) {
+                    const eewMinute = eew.earthquake.time.substring(0, 16);
+                    return targetMinute === eewMinute;
+                }
+                return false;
+            });
+        } catch (err) {
+            console.error("EEWデータの取得・判定に失敗しました:", err);
+            return false;
+        }
+    }
+
+    async function renderEarthquake(eq) {
         const earth = eq.earthquake;
         const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
@@ -362,22 +387,26 @@
             tsunamiDom.src = `assets/banner/${tsunamiMap[domesticTsunami]}`;
         }
 
-        // 遠地バナーとEEWバナーのコントロール
+        // 遠地バナーのコントロール
         const enchiDom = document.getElementById('banner-enchi');
-        const eewDom = document.getElementById('banner-eew');
-
-        // --- CSV対応判定ロジック ---
-        // CSVマスタから読み込んだオブジェクトを照合（部分一致対策含む）
         const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0;
 
         if (isEnchi) {
-            enchiDom.classList.remove('dimmed'); // クッキリ
-            map.setView([20, 140], 3);           // 遠地用の広域マップ
+            enchiDom.classList.remove('dimmed');
+            map.setView([20, 140], 3);
         } else {
-            enchiDom.classList.add('dimmed');    // うっすら
+            enchiDom.classList.add('dimmed');
         }
 
-        eewDom.classList.add('dimmed');
+        // --- EEWバナーの自動点灯ロジック ---
+        const eewDom = document.getElementById('banner-eew');
+        const hasEEW = await checkEEW(earth.time); // 非同期でコード556の重なりをチェック
+
+        if (hasEEW) {
+            eewDom.classList.remove('dimmed'); // 重なっていればクッキリ（EEW発表状態）
+        } else {
+            eewDom.classList.add('dimmed');    // 重なっていなければうっすら表示(0.1)
+        }
 
         // --- 震央マッピング (shingen.png を使用) ---
         if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
