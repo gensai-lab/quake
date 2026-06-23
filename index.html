@@ -42,27 +42,24 @@
         .header-area {
             position: relative;
             width: 100%;
-            height: 120px;
+            height: 157px; /* 120pxから157pxに変更 */
             z-index: 10;
             margin: 0;
             padding: 0;
         }
 
-        /* 背景となるPNG（100% 100%で強制フィット） */
+        /* 背景となるSVG（個別配置用） */
         .header-background {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: fill; /* 100% 100% で引き伸ばしてフィッティング */
+            object-fit: cover;
             z-index: 1;
-            margin: 0;
-            padding: 0;
-            display: block;
         }
 
-        /* ヘッダー内のコンテンツ用コンテナ */
+        /* ヘッダー内のコンテンツ用コンテナ（背景の上に重ねる） */
         .header-content {
             position: relative;
             width: 100%;
@@ -77,14 +74,10 @@
             height: 100%;
             display: flex;
             align-items: center;
-            margin: 0;
-            padding: 0;
         }
         .max-shindo-banner img {
             height: 100%;
             object-fit: contain;
-            margin: 0;
-            padding: 0;
             display: block;
         }
 
@@ -101,14 +94,10 @@
             display: flex;
             align-items: center;
             height: 100%;
-            margin: 0;
-            padding: 0;
         }
         .right-banners img {
             height: 100%;
             object-fit: contain;
-            margin: 0;
-            padding: 0;
             display: block;
         }
 
@@ -129,7 +118,7 @@
 
     <div class="container">
         <header class="header-area">
-            <img class="header-background" src="assets/back.png" alt="">
+            <img class="header-background" src="assets/back.svg" alt="">
 
             <div class="header-content">
                 <div class="max-shindo-banner">
