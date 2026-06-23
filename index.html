@@ -132,6 +132,7 @@
         .intensity-icon img {
             width: 50px;
             height: 50px;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6));
         }
 
         /* 震源地アイコン（shingen.png用） */
@@ -171,7 +172,6 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 画面のリサイズ対応（1920x1080を基準に等倍スケーリング）
     function resizeDisplay() {
         const container = document.getElementById('display-container');
         const scaleX = window.innerWidth / 1920;
@@ -182,7 +182,6 @@
     window.addEventListener('resize', resizeDisplay);
     resizeDisplay();
 
-    // Leafletマップ初期化
     const map = L.map('map', {
         zoomControl: false,
         attributionControl: false,
@@ -213,10 +212,9 @@
 
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
-    let shingenMaster = {};    // 震央CSVマスタ
-    let cityToSaibunMap = {};  // 震度観測点CSVマスタ
+    let shingenMaster = {};    
+    let cityToSaibunMap = {};  // 都道府県を考慮したマスタオブジェクトに修正
 
-    // 震央CSVを解析する関数
     function parseShingenCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
@@ -232,7 +230,7 @@
         return result;
     }
 
-    // 震度観測点CSVを解析する関数
+    // 震度観測点CSVを解析する関数（都道府県ごとのマッピングに対応）
     function parseObservationCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
@@ -240,9 +238,25 @@
             if (!lines[i]) continue;
             const cols = lines[i].split(',');
             if (cols.length >= 2) {
-                const saibunName = cols[0].trim();
-                const cityName = cols[1].trim();
-                result[cityName] = saibunName;
+                const saibunName = cols[0].trim(); // 例: 埼玉県南部
+                const cityName = cols[1].trim();   // 例: さいたま市緑区
+                
+                // 細分区域名（例:「埼玉県南部」）の先頭2〜4文字から都道府県名を推測抽出
+                let prefKey = "";
+                if (saibunName.startsWith("北海道")) prefKey = "北海道";
+                else if (saibunName.startsWith("東京")) prefKey = "東京都";
+                else if (saibunName.startsWith("京都")) prefKey = "京都府";
+                else if (saibunName.startsWith("大阪")) prefKey = "大阪府";
+                else if (saibunName.length > 2) {
+                    // 「神奈川県西部」なら「神奈川県」、「青森県津軽北部」なら「青森県」
+                    const matchPref = saibunName.match(/^.*?[都道府縣県]/);
+                    prefKey = matchPref ? matchPref[0] : saibunName.substring(0, 3);
+                }
+
+                if (!result[prefKey]) {
+                    result[prefKey] = {};
+                }
+                result[prefKey][cityName] = saibunName;
             }
         }
         return result;
@@ -305,31 +319,30 @@
         return [center.lat, center.lng];
     }
 
-    // 市町村名から細分区域名へと変換する関数（誤判定・過剰マッチ完全対策版）
-    function convertToSaibunName(addrName) {
-        if (!addrName) return null;
+    // 都道府県名(prefName)と市町村名(addrName)の両方を使って安全に細分区域を引く関数
+    function convertToSaibunNameWithPref(prefName, addrName) {
+        if (!prefName || !addrName) return null;
 
-        // 【安全化1】P2Pから送られてくる文字列がマスタの都市名（例：「さいたま市緑区」など）と完全に等しい、
-        // もしくは「後ろから部分一致」するかを厳密に精査。
-        // 単に「includes」だと、「秋田市」が「◯◯市秋田町」等に誤反応するのを防ぐため、文字数ベースで確実なもののみ抽出。
-        
-        // 1. マスタの中に「送られてきた文字列そのもの」または「市町村名レベルで完全一致」するものがあるか
-        if (cityToSaibunMap[addrName]) {
-            return cityToSaibunMap[addrName];
+        // 対象の都道府県マスタが存在するか確認
+        const prefMaster = cityToSaibunMap[prefName];
+        if (!prefMaster) return null;
+
+        // 1. 完全一致チェック
+        if (prefMaster[addrName]) {
+            return prefMaster[addrName];
         }
 
-        // 2. 「◯◯県◯◯市」のような形式から安全に末尾の市町村区を切り出し
+        // 2. 市町村レベルでの完全一致チェック
         const match = addrName.match(/^.*?[市町村区]+/);
         const baseCityName = match ? match[0] : addrName;
-
-        if (cityToSaibunMap[baseCityName]) {
-            return cityToSaibunMap[baseCityName];
+        if (prefMaster[baseCityName]) {
+            return prefMaster[baseCityName];
         }
 
-        // 3. ループ処理による部分一致は、誤反応の元になるため「マスタのキー（市町村名）が、送られてきた文字列の末尾にきれいにフィットするか」で厳格に判定
-        for (const cityKey in cityToSaibunMap) {
-            if (addrName.endsWith(cityKey) || baseCityName === cityKey) {
-                return cityToSaibunMap[cityKey];
+        // 3. 都道府県を絞った上での、安全な末尾部分一致
+        for (const cityKey in prefMaster) {
+            if (addrName.endsWith(cityKey) || baseCityName === cityKey || cityKey.includes(baseCityName)) {
+                return prefMaster[cityKey];
             }
         }
 
@@ -451,9 +464,12 @@
         const saibunMaxScale = {};
 
         points.forEach(p => {
-            const addrName = p.addr;
+            const prefName = p.pref; // P2Pから送られてくる都道府県名（例: "埼玉県"）
+            const addrName = p.addr; // P2Pから送られてくる地域・市町村名（例: "緑区"）
             const scale = p.scale;
-            const saibunName = convertToSaibunName(addrName);
+
+            // 都道府県と市町村名のコンビで安全にマッピングを抽出
+            const saibunName = convertToSaibunNameWithPref(prefName, addrName);
 
             if (saibunName && saibunFeatures[saibunName]) {
                 if (!saibunMaxScale[saibunName] || scale > saibunMaxScale[saibunName]) {
@@ -481,7 +497,6 @@
             }
         }
 
-        // 自動ズーム
         if (isEnchi) {
             map.setView([20, 140], 3);
         } else if (boundsPoints.length > 0) {
