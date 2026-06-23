@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>みんなの減災ラボ - 地震情報ツール</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* 16:9 配信画面サイズを想定したリセット */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: #0d1b2a;
+            color: #ffffff;
+        }
+
+        /* メインコンテナ（16:9ベース） */
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 上部情報ヘッダーエリア */
+        .header-area {
+            position: relative;
+            width: 100%;
+            height: 120px;
+            background: url('assets/back.svg') no-repeat center center;
+            background-size: cover;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 10;
+        }
+
+        /* 左側最大震度バナー */
+        .max-shindo-banner {
+            height: 100%;
+            display: flex;
+            align-items: center;
+        }
+        .max-shindo-banner img {
+            height: 90%;
+            object-fit: contain;
+        }
+
+        /* 中央のテキスト情報 */
+        .earthquake-info {
+            display: grid;
+            grid-template-columns: auto 1fr auto 1fr;
+            gap: 10px 15px;
+            margin-left: 20px;
+            font-weight: bold;
+        }
+        .info-label {
+            background-color: #ffffff;
+            color: #000000;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 18px;
+            text-align: center;
+            display: inline-block;
+            min-width: 50px;
+        }
+        .info-value {
+            font-size: 24px;
+            align-self: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        /* 右側補助バナーエリア */
+        .right-banners {
+            margin-left: auto;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            height: 100%;
+            padding-right: 20px;
+        }
+        .right-banners img {
+            height: 45px;
+            object-fit: contain;
+        }
+
+        /* クレジット表記 */
+        .credit {
+            position: absolute;
+            right: 15px;
+            bottom: 5px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+            z-index: 11;
+        }
+
+        /* 地図エリア */
+        #map {
+            flex: 1;
+            width: 100%;
+            background-color: #162238; /* 海の色 */
+        }
+
+        /* Leafletのコントロールを非表示（スクショ・配信画面用） */
+        .leaflet-control-container {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header class="header-area">
+            <div class="max-shindo-banner">
+                <img id="banner-max-shindo" src="assets/banner/b0.svg" alt="最大震度">
+            </div>
+
+            <div class="earthquake-info">
+                <span class="info-label">発生</span>
+                <span id="info-time" class="info-value">--日 --時--分ごろ</span>
+                <span class="info-label">規模</span>
+                <span id="info-magnitude" class="info-value">M--.-</span>
+                <span class="info-label">震源</span>
+                <span id="info-hypocenter" class="info-value">調査中</span>
+                <span class="info-label">深さ</span>
+                <span id="info-depth" class="info-value">---</span>
+            </div>
+
+            <div class="right-banners">
+                <img id="banner-tsunami" src="assets/banner/t1.svg" alt="津波情報">
+                <img id="banner-eew" src="assets/banner/eew.svg" alt="EEW" style="display: none;">
+                <img id="banner-enchi" src="assets/banner/enchi.svg" alt="遠地" style="display: none;">
+            </div>
+
+            <div class="credit">©Kactuif</div>
+        </header>
+
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // --- 震度コードマッピング関数 ---
+        function getShindoKey(scale) {
+            const mapping = {
+                10: '1',  20: '2',  30: '3',  40: '4',
+                45: '5m', 50: '5p', 55: '6m', 60: '6p', 70: '7'
+            };
+            return mapping[scale] || '0';
+        }
+
+        // --- 津波情報マッピング関数 ---
+        function getTsunamiBanner(domesticTsunami) {
+            switch(domesticTsunami) {
+                case 'None': return 'assets/banner/t2.svg'; // 心配なし
+                case 'Checking': return 'assets/banner/t1.svg'; // 調査中
+                case 'NonEffective': return 'assets/banner/t3.svg'; // 若干の海面変動
+                case 'Watch':
+                case 'Warning': return 'assets/banner/t4.svg'; // 津波情報発表中
+                default: return 'assets/banner/t1.svg';
+            }
+        }
+
+        // --- Leaflet マップ初期化 ---
+        const map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false,
+            dragging: false,
+            doubleClickZoom: false,
+            scrollWheelZoom: false,
+            boxZoom: false
+        }).setView([36.5, 137.0], 5);
+
+        // --- GeoJSONレイヤーの基本スタイル ---
+        const geoJsonStyle = {
+            color: "#4A5A80",    // 境界線の色
+            weight: 1,
+            fillColor: "#1D2D44", // 陸地の色
+            fillOpacity: 1
+        };
+
+        // 各種GeoJSONの読み込みとマップ初期化
+        Promise.all([
+            fetch('assets/map/pref.json').then(res => res.json()).catch(() => null),
+            fetch('assets/map/saibun.json').then(res => res.json()).catch(() => null),
+            fetch('assets/map/shionuma.json').then(res => res.json()).catch(() => null)
+        ]).then(([prefData, saibunData, shionumaData]) => {
+            if (saibunData) {
+                L.geoJSON(saibunData, { style: geoJsonStyle }).addTo(map);
+            } else if (prefData) {
+                L.geoJSON(prefData, { style: geoJsonStyle }).addTo(map);
+            }
+            if (shionumaData) {
+                L.geoJSON(shionumaData, { style: { color: "#3a4a6a", weight: 1, fillOpacity: 0 } }).addTo(map);
+            }
+            
+            // 地図データの展開が終わったらP2Pからデータを取得
+            fetchEarthquakeData();
+        });
+
+        // --- P2P地震情報データの取得と反映 ---
+        function fetchEarthquakeData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetId = urlParams.get('id');
+
+            // 直近30件を取得
+            fetch('https://api.p2pquake.net/v2/history?codes=551&limit=30')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || data.length === 0) return;
+
+                    // パラメータのIDに一致するデータを検索。なければ最新(0番目)を使用
+                    let eqData = data[0];
+                    if (targetId) {
+                        const found = data.find(item => item.id === targetId);
+                        if (found) eqData = found;
+                    }
+
+                    renderEarthquakeInfo(eqData);
+                })
+                .catch(err => console.error("データ取得エラー:", err));
+        }
+
+        // --- 画面へのデータレンダリング ---
+        function renderEarthquakeInfo(data) {
+            const eq = data.earthquake;
+            if (!eq) return;
+
+            // 1. 発生時刻の整形と反映 (例: "2026/06/23 07:20:00" -> "23日 07時20分ごろし")
+            if (eq.time) {
+                const timeParts = eq.time.split(' ')[1].split(':');
+                const dayPart = eq.time.split(' ')[0].split('/')[2];
+                document.getElementById('info-time').innerText = `${dayPart}日 ${timeParts[0]}時${timeParts[1]}分ごろ`;
+            }
+
+            // 2. 震源情報、マグニチュード、深さの反映
+            document.getElementById('info-hypocenter').innerText = eq.hypocenter.name || "調査中";
+            document.getElementById('info-magnitude').innerText = eq.maxScale === 0 ? "---" : (eq.magnitude ? `M${eq.magnitude}` : "M---");
+            
+            let depthText = "---";
+            if (eq.hypocenter.depth !== undefined) {
+                if (eq.hypocenter.depth === 0) depthText = "ごく浅い";
+                else if (eq.hypocenter.depth === -1) depthText = "調査中";
+                else depthText = `約${eq.hypocenter.depth}km`;
+            }
+            document.getElementById('info-depth').innerText = depthText;
+
+            // 3. 最大震度バナーの切り替え
+            const shindoKey = getShindoKey(eq.maxScale);
+            document.getElementById('banner-max-shindo').src = `assets/banner/b${shindoKey}.svg`;
+
+            // 4. 津波バナーの切り替え
+            const tsunamiSrc = getTsunamiBanner(eq.domesticTsunami);
+            document.getElementById('banner-tsunami').src = tsunamiSrc;
+
+            // 5. 遠地地震フラグの処理 (P2P地震情報において遠地地震コードなどの場合に切り替え可)
+            if (data.code === 552) {
+                document.getElementById('banner-enchi').style.display = 'block';
+            }
+
+            // 6. 各地の震度アイコンを地図上にプロット
+            if (data.points && data.points.length > 0) {
+                plotShindoIcons(data.points);
+            }
+        }
+
+        // --- 震度アイコンのプロット処理 ---
+        function plotShindoIcons(points) {
+            points.forEach(point => {
+                // 緯度経度の存在チェック
+                if (point.latitude && point.longitude) {
+                    const shindoKey = getShindoKey(point.scale);
+                    
+                    // 震度アイコン用のカスタムマーカーを生成
+                    const shindoIcon = L.icon({
+                        iconUrl: `assets/icons/s${shindoKey}.svg`,
+                        iconSize: [24, 24],       // 画像の表示サイズ
+                        iconAnchor: [12, 12]      // アイコンの中心点を座標に合わせる
+                    });
+
+                    // マップに追加
+                    L.marker([point.latitude, point.longitude], { icon: shindoIcon }).addTo(map);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
