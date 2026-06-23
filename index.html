@@ -245,7 +245,7 @@
         } catch (e) { console.error("震度観測点CSV読込失敗:", e); }
 
         try {
-            // 1. Natural Earthベースの世界地図データをロード（最背面）
+            // 1. Natural Earthベースの世界地図データをロード
             const worldRes = await fetch('https://datasets.geojson.xyz/world-countries-sans-antarctica.json');
             const worldData = await worldRes.json();
             worldLayer = L.geoJSON(worldData, {
@@ -256,6 +256,9 @@
                     fillOpacity: mapStyles.world.fillOpacity
                 }
             }).addTo(map);
+            
+            // 世界地図を強制的に最背面に移動させて、日本地図が隠れるのを防ぐ
+            worldLayer.bringToBack();
 
             // 2. 日本国内の細分区域データをロード
             const saibunRes = await fetch('assets/map/saibun.json');
@@ -271,7 +274,6 @@
                 }
             });
 
-            // 世界地図の陸地と色を統一させてシームレスにつなぐ
             saibunLayer = L.geoJSON(saibunData, {
                 style: { color: mapStyles.saibun.color, weight: mapStyles.saibun.weight, fillColor: "#BFBFBF", fillOpacity: 1.0 }
             }).addTo(map);
@@ -280,7 +282,7 @@
                 style: { color: mapStyles.pref.color, weight: mapStyles.pref.weight, fillColor: "none", fillOpacity: 0 }
             }).addTo(map);
 
-            // 3. 内水面（湖など）の塗りつぶし（最前面の海レイヤー）
+            // 3. 内水面（湖など）の塗りつぶし
             shionumaLayer = L.geoJSON(await (await fetch('assets/map/shionuma.json')).json(), {
                 style: { color: mapStyles.shionuma.color, weight: mapStyles.shionuma.weight, fillColor: "#143264", fillOpacity: 1.0 }
             }).addTo(map);
