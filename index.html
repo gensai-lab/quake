@@ -214,10 +214,11 @@
 
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
-    let shingenMaster = {}; // CSVマスタ
+    let shingenMaster = {};    // 震央CSVマスタ
+    let cityToSaibunMap = {};  // 新設：震度観測点CSVマスタ
 
-    // CSVファイルを解析するカスタム関数
-    function parseCSV(csvText) {
+    // 震央CSVを解析する関数
+    function parseShingenCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
         for (let i = 1; i < lines.length; i++) {
@@ -232,18 +233,43 @@
         return result;
     }
 
+    // 新設：震度観測点CSVを解析する関数
+    function parseObservationCSV(csvText) {
+        const lines = csvText.split(/\r?\n/);
+        const result = {};
+        for (let i = 1; i < lines.length; i++) {
+            if (!lines[i]) continue;
+            const cols = lines[i].split(',');
+            if (cols.length >= 2) {
+                const saibunName = cols[0].trim(); // 細分区域名
+                const cityName = cols[1].trim();   // 市町村名
+                result[cityName] = saibunName;     // 市町村名をキーにして細分区域名を格納
+            }
+        }
+        return result;
+    }
+
     async function loadGeoJSON() {
         try {
-            // 0. 震央マスタCSVの読み込み
+            // 0-1. 震央マスタCSVの読み込み
             const csvRes = await fetch('assets/震央.csv');
             const csvText = await csvRes.text();
-            shingenMaster = parseCSV(csvText);
+            shingenMaster = parseShingenCSV(csvText);
         } catch (e) {
             console.error("震央CSVの読み込みに失敗しました:", e);
         }
 
         try {
-            // 1. 細分区域をベースとして描画（塗りつぶし・線色を適用）
+            // 0-2. 新設：震度観測点マスタCSVの読み込み
+            const obsRes = await fetch('assets/震度観測点.csv');
+            const obsText = await obsRes.text();
+            cityToSaibunMap = parseObservationCSV(obsText);
+        } catch (e) {
+            console.error("震度観測点CSVの読み込みに失敗しました:", e);
+        }
+
+        try {
+            // 1. 細分区域をベースとして描画
             const saibunRes = await fetch('assets/map/saibun.json');
             const saibunData = await saibunRes.json();
             
@@ -254,36 +280,21 @@
             });
 
             saibunLayer = L.geoJSON(saibunData, {
-                style: { 
-                    color: "#A6A6A6", 
-                    weight: 0.8, 
-                    fillColor: "#BFBFBF", 
-                    fillOpacity: 1.0 
-                }
+                style: { color: "#A6A6A6", weight: 0.8, fillColor: "#BFBFBF", fillOpacity: 1.0 }
             }).addTo(map);
 
-            // 2. 都道府県の境界線を上に重ねる（塗りつぶしなし）
+            // 2. 都道府県の境界線を上に重ねる
             const prefRes = await fetch('assets/map/pref.json');
             const prefData = await prefRes.json();
             prefLayer = L.geoJSON(prefData, {
-                style: { 
-                    color: "#595959", 
-                    weight: 1.8, 
-                    fillColor: "none", 
-                    fillOpacity: 0 
-                }
+                style: { color: "#595959", weight: 1.8, fillColor: "none", fillOpacity: 0 }
             }).addTo(map);
 
-            // 3. 潮沼レイヤーを一番上に重ねる（背景色と同じ色で塗りつぶし）
+            // 3. 潮沼レイヤーを一番上に重ねる
             const shionumaRes = await fetch('assets/map/shionuma.json');
             const shionumaData = await shionumaRes.json();
             shionumaLayer = L.geoJSON(shionumaData, {
-                style: { 
-                    color: "none", 
-                    weight: 0,
-                    fillColor: "#143264", 
-                    fillOpacity: 1.0 
-                }
+                style: { color: "none", weight: 0, fillColor: "#143264", fillOpacity: 1.0 }
             }).addTo(map);
 
         } catch (e) {
@@ -293,10 +304,40 @@
 
     function getFeatureCenter(feature) {
         if (feature.geometry.type === "Point") {
-            return feature.geometry.coordinates;
+            return [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
         }
         const tempLayer = L.geoJSON(feature);
         return tempLayer.getBounds().getCenter();
+    }
+
+    // 新設：市町村区の末尾を安全に切り取る関数
+    function sanitizeCityName(addrName) {
+        if (!addrName) return "";
+        // 例外（四日市市など）を考慮しつつ最初の「市・町・村・区」以降を切り落とす
+        const match = addrName.match(/^.*?[市町村区]+/);
+        if (match) {
+            return match[0];
+        }
+        return addrName;
+    }
+
+    // 新設：市町村名から細分区域名へと変換する関数
+    function convertToSaibunName(addrName) {
+        // 1. まず地名を「市町村区」のレベルまで切り落とす（例: 「海南市下津」->「海南市」）
+        const baseCityName = sanitizeCityName(addrName);
+
+        // 2. ロードしたマスタから細分区域名をダイレクトに取得
+        if (cityToSaibunMap[baseCityName]) {
+            return cityToSaibunMap[baseCityName];
+        }
+
+        // 3. 念のための部分一致フォールバック
+        for (const cityKey in cityToSaibunMap) {
+            if (baseCityName.includes(cityKey)) {
+                return cityToSaibunMap[cityKey];
+            }
+        }
+        return null;
     }
 
     async function fetchQuakeData() {
@@ -315,14 +356,12 @@
                 if (found) eq = found;
             }
 
-            // 551データを元に描画関数を実行
             await renderEarthquake(eq);
         } catch (e) {
             console.error("APIの取得に失敗しました:", e);
         }
     }
 
-    // コード556(緊急地震速報)の履歴を取得し、対象の地震日時と「分まで」重なっているか調べる関数
     async function checkEEW(targetTimeStr) {
         if (!targetTimeStr) return false;
         try {
@@ -330,10 +369,7 @@
             const eewData = await eewRes.json();
             if (!eewData || eewData.length === 0) return false;
 
-            // 551の発生時刻（例: "2026/06/23 11:49:00"）を分単位「YYYY/MM/DD HH:mm」形式に切り出し
             const targetMinute = targetTimeStr.substring(0, 16);
-
-            // 556のデータ内に、地震発生時刻（originTime）の分単位が重なるものがあるか検索
             return eewData.some(eew => {
                 if (eew.earthquake && eew.earthquake.originTime) {
                     const eewMinute = eew.earthquake.originTime.substring(0, 16);
@@ -352,7 +388,6 @@
         const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
 
-        // 時刻のパース
         if (earth.time) {
             const t = earth.time.split(' ');
             if (t.length >= 2) {
@@ -370,7 +405,6 @@
         if (earth.hypocenter.depth === -1) depthStr = "深さ不明";
         document.getElementById('val-depth').innerText = depthStr;
 
-        // 最大震度バナー
         const maxInt = earth.maxScale;
         const bannerContainer = document.getElementById('max-intensity-banner');
         if (intensityMap[maxInt]) {
@@ -379,14 +413,12 @@
             bannerContainer.style.backgroundImage = `url('assets/banner/b0.svg')`;
         }
 
-        // 津波バナー
         const tsunamiDom = document.getElementById('banner-tsunami');
         const domesticTsunami = earth.domesticTsunami || "None";
         if (tsunamiMap[domesticTsunami]) {
             tsunamiDom.src = `assets/banner/${tsunamiMap[domesticTsunami]}`;
         }
 
-        // 遠地バナーのコントロール
         const enchiDom = document.getElementById('banner-enchi');
         const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0;
 
@@ -397,17 +429,14 @@
             enchiDom.classList.add('dimmed');
         }
 
-        // --- EEWバナーの自動点灯ロジック ---
         const eewDom = document.getElementById('banner-eew');
-        const hasEEW = await checkEEW(earth.time); // 551のearthquake.timeを渡して照合
-
+        const hasEEW = await checkEEW(earth.time);
         if (hasEEW) {
-            eewDom.classList.remove('dimmed'); // 分単位まで一致していればクッキリ点灯
+            eewDom.classList.remove('dimmed');
         } else {
-            eewDom.classList.add('dimmed');    // 一致しなければうっすら
+            eewDom.classList.add('dimmed');
         }
 
-        // --- 震央マッピング (shingen.png を使用) ---
         if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
             const epicenterIcon = L.divIcon({
                 className: 'epicenter-icon',
@@ -422,25 +451,41 @@
             }
         }
 
-        // 震度アイコンのマッピング
+        // 修正：各観測点を細分区域ごとの最大震度に統合するロジック
+        const saibunMaxScale = {};
+
         points.forEach(p => {
-            const saibunName = p.addr;
+            const addrName = p.addr;
             const scale = p.scale;
 
-            if (saibunFeatures[saibunName] && intensityMap[scale]) {
+            // マスタCSVを介して細分区域名に変換
+            const saibunName = convertToSaibunName(addrName);
+
+            if (saibunName && saibunFeatures[saibunName]) {
+                // 同じ細分区域内で最も高い震度をキープ
+                if (!saibunMaxScale[saibunName] || scale > saibunMaxScale[saibunName]) {
+                    saibunMaxScale[saibunName] = scale;
+                }
+            }
+        });
+
+        // 集計された細分区域ごとの最大震度アイコンを地図にプロット
+        for (const saibunName in saibunMaxScale) {
+            const finalScale = saibunMaxScale[saibunName];
+            
+            if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
-                
-                const iconPath = `assets/icons/${intensityMap[scale].icon}`;
+                const iconPath = `assets/icons/${intensityMap[finalScale].icon}`;
                 const icon = L.divIcon({
                     className: 'intensity-icon',
-                    html: `<img src="${iconPath}" alt="震度${scale}">`,
+                    html: `<img src="${iconPath}" alt="震度${finalScale}">`,
                     iconSize: [50, 50],
                     iconAnchor: [25, 25]
                 });
 
                 L.marker(center, { icon: icon }).addTo(map);
             }
-        });
+        }
     }
 
     async function init() {
