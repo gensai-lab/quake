@@ -215,7 +215,7 @@
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
     let shingenMaster = {};    // 震央CSVマスタ
-    let cityToSaibunMap = {};  // 新設：震度観測点CSVマスタ
+    let cityToSaibunMap = {};  // 震度観測点CSVマスタ
 
     // 震央CSVを解析する関数
     function parseShingenCSV(csvText) {
@@ -233,7 +233,7 @@
         return result;
     }
 
-    // 新設：震度観測点CSVを解析する関数
+    // 震度観測点CSVを解析する関数
     function parseObservationCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
@@ -242,8 +242,8 @@
             const cols = lines[i].split(',');
             if (cols.length >= 2) {
                 const saibunName = cols[0].trim(); // 細分区域名
-                const cityName = cols[1].trim();   // 市町村名
-                result[cityName] = saibunName;     // 市町村名をキーにして細分区域名を格納
+                const cityName = cols[1].trim();   // 市町村名（マスタ側は「札幌中央区」等になっている想定）
+                result[cityName] = saibunName;
             }
         }
         return result;
@@ -251,7 +251,6 @@
 
     async function loadGeoJSON() {
         try {
-            // 0-1. 震央マスタCSVの読み込み
             const csvRes = await fetch('assets/震央.csv');
             const csvText = await csvRes.text();
             shingenMaster = parseShingenCSV(csvText);
@@ -260,7 +259,6 @@
         }
 
         try {
-            // 0-2. 新設：震度観測点マスタCSVの読み込み
             const obsRes = await fetch('assets/震度観測点.csv');
             const obsText = await obsRes.text();
             cityToSaibunMap = parseObservationCSV(obsText);
@@ -269,7 +267,6 @@
         }
 
         try {
-            // 1. 細分区域をベースとして描画
             const saibunRes = await fetch('assets/map/saibun.json');
             const saibunData = await saibunRes.json();
             
@@ -283,14 +280,12 @@
                 style: { color: "#A6A6A6", weight: 0.8, fillColor: "#BFBFBF", fillOpacity: 1.0 }
             }).addTo(map);
 
-            // 2. 都道府県の境界線を上に重ねる
             const prefRes = await fetch('assets/map/pref.json');
             const prefData = await prefRes.json();
             prefLayer = L.geoJSON(prefData, {
                 style: { color: "#595959", weight: 1.8, fillColor: "none", fillOpacity: 0 }
             }).addTo(map);
 
-            // 3. 潮沼レイヤーを一番上に重ねる
             const shionumaRes = await fetch('assets/map/shionuma.json');
             const shionumaData = await shionumaRes.json();
             shionumaLayer = L.geoJSON(shionumaData, {
@@ -310,28 +305,27 @@
         return tempLayer.getBounds().getCenter();
     }
 
-    // 新設：市町村区の末尾を安全に切り取る関数
-    function sanitizeCityName(addrName) {
-        if (!addrName) return "";
-        // 例外（四日市市など）を考慮しつつ最初の「市・町・村・区」以降を切り落とす
-        const match = addrName.match(/^.*?[市町村区]+/);
-        if (match) {
-            return match[0];
-        }
-        return addrName;
-    }
-
-    // 新設：市町村名から細分区域名へと変換する関数
+    // 市町村名から細分区域名へと変換する関数（同名回避ロジック強化版）
     function convertToSaibunName(addrName) {
-        // 1. まず地名を「市町村区」のレベルまで切り落とす（例: 「海南市下津」->「海南市」）
-        const baseCityName = sanitizeCityName(addrName);
+        if (!addrName) return null;
 
-        // 2. ロードしたマスタから細分区域名をダイレクトに取得
+        // 【強化ステップ1】フル文字列（例: 「埼玉県さいたま市緑区」）のなかに、マスタの「市町村名」が完全に含まれるか調べる
+        // 先に長めの完全一致をチェックすることで、「緑区」単体ではなく「札幌中央区」や「さいたま市緑区」に正しくヒットさせます。
+        for (const cityKey in cityToSaibunMap) {
+            if (addrName.includes(cityKey)) {
+                return cityToSaibunMap[cityKey];
+            }
+        }
+
+        // 【強化ステップ2】地名を「市町村区」のレベルまで正規表現で切り落とす（フォールバック用）
+        const match = addrName.match(/^.*?[市町村区]+/);
+        const baseCityName = match ? match[0] : addrName;
+
         if (cityToSaibunMap[baseCityName]) {
             return cityToSaibunMap[baseCityName];
         }
 
-        // 3. 念のための部分一致フォールバック
+        // 最後の手段として部分一致
         for (const cityKey in cityToSaibunMap) {
             if (baseCityName.includes(cityKey)) {
                 return cityToSaibunMap[cityKey];
@@ -451,25 +445,22 @@
             }
         }
 
-        // 修正：各観測点を細分区域ごとの最大震度に統合するロジック
         const saibunMaxScale = {};
 
         points.forEach(p => {
-            const addrName = p.addr;
+            const addrName = p.addr; // 例: 「埼玉県さいたま市緑区」
             const scale = p.scale;
 
-            // マスタCSVを介して細分区域名に変換
+            // マスタCSVを介して細分区域名に変換（強化された検索ロジック）
             const saibunName = convertToSaibunName(addrName);
 
             if (saibunName && saibunFeatures[saibunName]) {
-                // 同じ細分区域内で最も高い震度をキープ
                 if (!saibunMaxScale[saibunName] || scale > saibunMaxScale[saibunName]) {
                     saibunMaxScale[saibunName] = scale;
                 }
             }
         });
 
-        // 集計された細分区域ごとの最大震度アイコンを地図にプロット
         for (const saibunName in saibunMaxScale) {
             const finalScale = saibunMaxScale[saibunName];
             
