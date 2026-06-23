@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px;}
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -210,7 +210,7 @@
         try {
             const obsRes = await fetch('assets/震度観測点.csv');
             cityToSaibunMap = parseObservationCSV(await obsRes.text());
-            console.log("解析されたマスタデータ構造:", cityToSaibunMap); // マスタ確認ログ
+            console.log("解析されたマスタデータ構造:", cityToSaibunMap);
         } catch (e) { console.error("震度観測点CSV読込失敗:", e); }
 
         try {
@@ -248,24 +248,27 @@
 
         const prefMaster = cityToSaibunMap[prefName];
         if (!prefMaster) {
-            // デバッグログ: 都道府県名自体がマスタに存在しない場合
             console.warn(`[マスタ未登録の都道府県] API送出: "${prefName}" (観測点: ${addrName})`);
             return null;
         }
 
+        // 1. 完全一致チェック
         if (prefMaster[addrName]) return prefMaster[addrName];
 
-        const match = addrName.match(/^.*?[市町村区]+/);
+        // 2. 市町村レベルでの切り出し（大字・地区名の切り落としロジックを修正）
+        // 「手前からの最短マッチ」にすることで、「渋川市村上」から正確に「渋川市」を切り出す
+        const match = addrName.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|［.*?］|市|町|村|区)/);
         const baseCityName = match ? match[0] : addrName;
+        
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
 
+        // 3. 安全な末尾部分一致・包含チェック
         for (const cityKey in prefMaster) {
             if (addrName.endsWith(cityKey) || baseCityName === cityKey || cityKey.includes(baseCityName)) {
                 return prefMaster[cityKey];
             }
         }
 
-        // デバッグログ: 都道府県はあったが、市町村名がどうしても一致しなかった場合
         console.warn(`[市町村マッピング失敗] 都道府県: "${prefName}", API送出市町村: "${addrName}" (判定ベース: "${baseCityName}")`);
         return null;
     }
@@ -354,7 +357,6 @@
                         saibunMaxScale[saibunName] = scale;
                     }
                 } else {
-                    // デバッグログ: 細分区域名は特定できたが、GeoJSON(saibun.json)側に該当する境界データがない場合
                     console.error(`[GeoJSON不一致] 細分区域 "${saibunName}" が saibun.json の中に見つかりません。`);
                 }
             }
