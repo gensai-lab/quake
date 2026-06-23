@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
+        .intensity-icon img { width: 50px; height: 50px; }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -131,17 +131,17 @@
         maxZoom: 12
     }).setView([36.5, 138.0], 5);
 
-    // 優先度（重なり順）マッピング: 7が最大(最前面)、1が最小、震源は一番下
+    // 優先度（重なり順）マッピング
     const intensityMap = {
-        "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 110 },
-        "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 120 },
-        "30": { banner: "b3.svg", icon: "s3.svg", zIndex: 130 },
-        "40": { banner: "b4.svg", icon: "s4.svg", zIndex: 140 },
-        "45": { banner: "b5m.svg", icon: "s5m.svg", zIndex: 150 },
-        "50": { banner: "b5p.svg", icon: "s5p.svg", zIndex: 160 },
-        "55": { banner: "b6m.svg", icon: "s6m.svg", zIndex: 170 },
-        "60": { banner: "b6p.svg", icon: "s6p.svg", zIndex: 180 },
-        "70": { banner: "b7.svg", icon: "s7.svg", zIndex: 190 }
+        "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 110, level: 1 },
+        "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 120, level: 2 },
+        "30": { banner: "b3.svg", icon: "s3.svg", zIndex: 130, level: 3 },
+        "40": { banner: "b4.svg", icon: "s4.svg", zIndex: 140, level: 4 },
+        "45": { banner: "b5m.svg", icon: "s5m.svg", zIndex: 150, level: 5 },
+        "50": { banner: "b5p.svg", icon: "s5p.svg", zIndex: 160, level: 6 },
+        "55": { banner: "b6m.svg", icon: "s6m.svg", zIndex: 170, level: 7 },
+        "60": { banner: "b6p.svg", icon: "s6p.svg", zIndex: 180, level: 8 },
+        "70": { banner: "b7.svg", icon: "s7.svg", zIndex: 190, level: 9 }
     };
 
     const tsunamiMap = {
@@ -253,12 +253,21 @@
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
-        // 【例外ルール強化】大島町・伊豆大島町どちらでも伊豆諸島へ
         if (prefName === "東京都") {
-            if (addrName.includes("大島") || addrName.includes("利島村") || addrName.includes("新島村") || 
-                addrName.includes("神津島村") || addrName.includes("三宅村") || addrName.includes("御蔵島村") ||
-                addrName.includes("青ヶ島村") || addrName.includes("八丈町")) {
-                return "伊豆諸島"; 
+            if (addrName.includes("大島町")) {
+                return "伊豆大島"; 
+            }
+            if (addrName.includes("利島村") || addrName.includes("新島村")) {
+                return "新島"; 
+            }
+            if (addrName.includes("神津島村")) {
+                return "神津島"; 
+            }
+            if (addrName.includes("三宅村") || addrName.includes("御蔵島村")) {
+                return "三宅島"; 
+            }
+            if (addrName.includes("八丈町") || addrName.includes("青ヶ島村")) {
+                return "八丈島"; 
             }
             if (addrName.includes("小笠原村")) {
                 return "小笠原諸島";
@@ -336,7 +345,10 @@
         const earth = eq.earthquake;
         const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
-        let boundsPoints = [];
+        
+        let epicenterLat = earth.hypocenter.latitude;
+        let epicenterLng = earth.hypocenter.longitude;
+        let hasEpicenter = (epicenterLat !== -1 && epicenterLng !== -1);
 
         if (earth.time) {
             const t = earth.time.split(' ');
@@ -364,24 +376,21 @@
         if (await checkEEW(earth.time)) document.getElementById('banner-eew').classList.remove('dimmed');
         else document.getElementById('banner-eew').classList.add('dimmed');
 
-        // 震源アイコンの配置（zIndexOffset: 100 で最背面になるように設定）
-        if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
-            boundsPoints.push([earth.hypocenter.latitude, earth.hypocenter.longitude]);
-            L.marker([earth.hypocenter.latitude, earth.hypocenter.longitude], {
+        // 震源ピンの配置
+        if (hasEpicenter) {
+            L.marker([epicenterLat, epicenterLng], {
                 icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] }),
                 zIndexOffset: 100 
             }).addTo(map);
         }
 
         const saibunMaxScale = {};
-
         points.forEach(p => {
             const prefName = p.pref; 
             const addrName = p.addr; 
             const scale = p.scale;
 
             const saibunName = convertToSaibunNameWithPref(prefName, addrName);
-
             if (saibunName) {
                 const targetKey = saibunName.trim();
                 if (saibunFeatures[targetKey]) {
@@ -392,41 +401,75 @@
             }
         });
 
+        // ズーム範囲計算用の座標リスト
+        let zoomBoundsPoints = [];
+        
+        // 最大震度の情報を取得（条件分岐に利用）
+        const maxScaleValue = intensityMap[maxInt] ? intensityMap[maxInt].level : 0;
+
         // 各細分区域に震度ピンをマッピング
         for (const saibunName in saibunMaxScale) {
             const finalScale = saibunMaxScale[saibunName];
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
-                boundsPoints.push(center);
                 
-                // zIndexOffset に intensityMap の定義値 (110〜190) を適用
                 L.marker(center, {
                     icon: L.divIcon({ className: 'intensity-icon', html: `<img src="assets/icons/${intensityMap[finalScale].icon}" alt="震度${finalScale}">`, iconSize: [50, 50], iconAnchor: [25, 25] }),
                     zIndexOffset: intensityMap[finalScale].zIndex
                 }).addTo(map);
+
+                // 【ズーム条件判定ロジック】
+                // 1. 最大震度が3以上(level>=3)なら、震度3以上のピンだけをズーム範囲に含める
+                // 2. 最大震度が2以下なら、すべての観測ピンをズーム範囲に含める
+                const currentLevel = intensityMap[finalScale].level;
+                if (maxScaleValue >= 3) {
+                    if (currentLevel >= 3) {
+                        zoomBoundsPoints.push(center);
+                    }
+                } else {
+                    zoomBoundsPoints.push(center);
+                }
             }
         }
 
-        // 自動ズームの倍率と表示余白を最適化
+        // ズーム処理（震源地を絶対中央に固定する計算）
         if (isEnchi) {
             map.setView([20, 140], 3);
-        } else if (boundsPoints.length > 0) {
-            map.fitBounds(L.latLngBounds(boundsPoints), { 
-                paddingTopLeft: [40, 200],  
-                paddingBottomRight: [40, 40], 
-                maxZoom: 10                 
-            });
+        } else if (hasEpicenter) {
+            // ズーム対象のピンが存在する場合、それらが画面に入り、かつ震源が中央になるよう「点対称な仮想ピン」を生成
+            if (zoomBoundsPoints.length > 0) {
+                let symmetricPoints = [];
+                zoomBoundsPoints.forEach(pt => {
+                    symmetricPoints.push([pt[0], pt[1]]); // 元のピン
+                    
+                    // 震源(epicenter)を挟んで真反対の位置（点対称の座標）を計算して追加
+                    let diffLat = pt[0] - epicenterLat;
+                    let diffLng = pt[1] - epicenterLng;
+                    symmetricPoints.push([epicenterLat - diffLat, epicenterLng - diffLng]);
+                });
+
+                // 震源自身も範囲に含める
+                symmetricPoints.push([epicenterLat, epicenterLng]);
+
+                // 点対称化されたすべての範囲を包含させることで、結果的に震源地が完全に「画面の真ん中」に固定されます
+                map.fitBounds(L.latLngBounds(symmetricPoints), { 
+                    paddingTopLeft: [190, 40],  // 上部ヘッダー（190px）を綺麗に避ける絶妙な均等マージン
+                    paddingBottomRight: [40, 40], 
+                    maxZoom: 10
+                });
+            } else {
+                // 万が一条件に合致するピンがゼロ（震度1〜2が数珠つなぎで最大3以上の地震など）の場合は震源地をドンピシャ中央へ
+                map.setView([epicenterLat, epicenterLng], 7);
+            }
         }
     }
 
     // キーボードの矢印上下キーによる拡大・縮小制御
     window.addEventListener('keydown', function(event) {
         if (event.key === 'ArrowUp') {
-            // ↑ キーで一段階拡大 (最大ズーム12を超えない範囲で)
             map.zoomIn();
-            event.preventDefault(); // 画面全体のスクロールなどの既定動作を防止
+            event.preventDefault();
         } else if (event.key === 'ArrowDown') {
-            // ↓ キーで一段階縮小
             map.zoomOut();
             event.preventDefault();
         }
