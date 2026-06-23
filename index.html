@@ -20,7 +20,7 @@
             user-select: none;
         }
 
-        /* 16:9 画面比率の固定コンテナ（スクショ用） */
+        /* 16:9 画面比率の固定コンテナ */
         #display-container {
             position: relative;
             width: 1920px;
@@ -28,14 +28,12 @@
             transform-origin: top left;
         }
 
-        /* 地図の背景色を変更 */
         #map {
             width: 100%;
             height: 100%;
             background: #143264;
         }
 
-        /* 上部ヘッダー（back.svgを横幅100%の背景として表示） */
         #header-container {
             position: absolute;
             top: 0;
@@ -48,7 +46,6 @@
             z-index: 1000;
         }
 
-        /* 左上 震度バナーエリア */
         #max-intensity-banner {
             position: absolute;
             top: 0;
@@ -59,9 +56,6 @@
             background-repeat: no-repeat;
         }
 
-        /* -------------------------------------------
-           【個別調整エリア】文字の位置・サイズを自由に変更できます
-           ------------------------------------------- */
         .info-text-base {
             position: absolute;
             color: #ffffff;
@@ -69,35 +63,11 @@
             white-space: nowrap;
         }
 
-        /* 発生時刻 */
-        #val-time {
-            font-size: 46px;
-            left: 630px;
-            top: 0px;
-        }
+        #val-time { font-size: 46px; left: 630px; top: 0px; }
+        #val-hypocenter { font-size: 46px; left: 630px; top: 68px; }
+        #val-magnitude { font-size: 46px; left: 1228px; top: 0px; }
+        #val-depth { font-size: 46px; left: 1228px; top: 68px; }
 
-        /* 震源 */
-        #val-hypocenter {
-            font-size: 46px;
-            left: 630px;
-            top: 68px;
-        }
-
-        /* 規模 (マグニチュード) */
-        #val-magnitude {
-            font-size: 46px;
-            left: 1228px;
-            top: 0px;
-        }
-
-        /* 深さ */
-        #val-depth {
-            font-size: 46px;
-            left: 1228px;
-            top: 68px;
-        }
-
-        /* 右上 ステータスバナーエリア */
         #status-banners {
             position: absolute;
             top: 20px;
@@ -108,42 +78,15 @@
             gap: 8px;
         }
 
-        .banner-row {
-            display: flex;
-            gap: 8px;
-        }
+        .banner-row { display: flex; gap: 8px; }
+        .status-banner { height: 55px; object-fit: contain; transition: opacity 0.3s ease; }
+        .status-banner.dimmed { opacity: 0.1 !important; }
 
-        .status-banner {
-            height: 55px;
-            object-fit: contain;
-            transition: opacity 0.3s ease;
-        }
+        .intensity-icon { background: none; border: none; }
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
-        /* 非表示状態でも透明度0.1でうっすら表示させるスタイル */
-        .status-banner.dimmed {
-            opacity: 0.1 !important;
-        }
-
-        /* カスタムアイコンスタイル */
-        .intensity-icon {
-            background: none;
-            border: none;
-        }
-        .intensity-icon img {
-            width: 50px;
-            height: 50px;
-            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6));
-        }
-
-        /* 震源地アイコン（shingen.png用） */
-        .epicenter-icon {
-            background: none;
-            border: none;
-        }
-        .epicenter-icon img {
-            width: 60px;
-            height: 60px;
-        }
+        .epicenter-icon { background: none; border: none; }
+        .epicenter-icon img { width: 60px; height: 60px; }
     </style>
 </head>
 <body>
@@ -161,7 +104,6 @@
 
         <div id="status-banners">
             <img id="banner-tsunami" class="status-banner" src="assets/banner/t2.svg" alt="津波情報">
-            
             <div class="banner-row">
                 <img id="banner-eew" class="status-banner dimmed" src="assets/banner/eew.svg" alt="EEW">
                 <img id="banner-enchi" class="status-banner dimmed" src="assets/banner/enchi.svg" alt="遠地">
@@ -202,12 +144,7 @@
     };
 
     const tsunamiMap = {
-        "None": "t2.svg",
-        "Unknown": "t1.svg",
-        "Checking": "t1.svg",
-        "NonEffective": "t3.svg",
-        "Watch": "t4.svg",
-        "Warning": "t4.svg"
+        "None": "t2.svg", "Unknown": "t1.svg", "Checking": "t1.svg", "NonEffective": "t3.svg", "Watch": "t4.svg", "Warning": "t4.svg"
     };
 
     let saibunLayer, prefLayer, shionumaLayer;
@@ -222,15 +159,12 @@
             if (!lines[i]) continue;
             const cols = lines[i].split(',');
             if (cols.length >= 2) {
-                const name = cols[0].trim();
-                const isTrue = cols[1].trim().toUpperCase() === 'TRUE';
-                result[name] = isTrue;
+                result[cols[0].trim()] = cols[1].trim().toUpperCase() === 'TRUE';
             }
         }
         return result;
     }
 
-    // 震度観測点CSVを解析する関数（例外地域対応版）
     function parseObservationCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
@@ -243,7 +177,6 @@
                 
                 let prefKey = "";
                 
-                // 【例外対応】細分区域名に都道府縣の名前が含まれない地域への対策
                 if (saibunName.includes("伊豆諸島") || saibunName.includes("小笠原")) {
                     prefKey = "東京都";
                 } else if (saibunName.startsWith("北海道")) {
@@ -271,49 +204,34 @@
     async function loadGeoJSON() {
         try {
             const csvRes = await fetch('assets/震央.csv');
-            const csvText = await csvRes.text();
-            shingenMaster = parseShingenCSV(csvText);
-        } catch (e) {
-            console.error("震央CSVの読み込みに失敗しました:", e);
-        }
+            shingenMaster = parseShingenCSV(await csvRes.text());
+        } catch (e) { console.error("震央CSV読込失敗:", e); }
 
         try {
             const obsRes = await fetch('assets/震度観測点.csv');
-            const obsText = await obsRes.text();
-            cityToSaibunMap = parseObservationCSV(obsText);
-        } catch (e) {
-            console.error("震度観測点CSVの読み込みに失敗しました:", e);
-        }
+            cityToSaibunMap = parseObservationCSV(await obsRes.text());
+            console.log("解析されたマスタデータ構造:", cityToSaibunMap); // マスタ確認ログ
+        } catch (e) { console.error("震度観測点CSV読込失敗:", e); }
 
         try {
             const saibunRes = await fetch('assets/map/saibun.json');
             const saibunData = await saibunRes.json();
-            
             saibunData.features.forEach(f => {
-                if (f.properties && f.properties.name) {
-                    saibunFeatures[f.properties.name] = f;
-                }
+                if (f.properties && f.properties.name) saibunFeatures[f.properties.name] = f;
             });
 
             saibunLayer = L.geoJSON(saibunData, {
                 style: { color: "#A6A6A6", weight: 0.8, fillColor: "#BFBFBF", fillOpacity: 1.0 }
             }).addTo(map);
 
-            const prefRes = await fetch('assets/map/pref.json');
-            const prefData = await prefRes.json();
-            prefLayer = L.geoJSON(prefData, {
+            prefLayer = L.geoJSON(await (await fetch('assets/map/pref.json')).json(), {
                 style: { color: "#595959", weight: 1.8, fillColor: "none", fillOpacity: 0 }
             }).addTo(map);
 
-            const shionumaRes = await fetch('assets/map/shionuma.json');
-            const shionumaData = await shionumaRes.json();
-            shionumaLayer = L.geoJSON(shionumaData, {
+            shionumaLayer = L.geoJSON(await (await fetch('assets/map/shionuma.json')).json(), {
                 style: { color: "none", weight: 0, fillColor: "#143264", fillOpacity: 1.0 }
             }).addTo(map);
-
-        } catch (e) {
-            console.error("GeoJSONの読み込みに失敗しました:", e);
-        }
+        } catch (e) { console.error("GeoJSON読込失敗:", e); }
     }
 
     function getFeatureCenter(feature) {
@@ -329,17 +247,17 @@
         if (!prefName || !addrName) return null;
 
         const prefMaster = cityToSaibunMap[prefName];
-        if (!prefMaster) return null;
-
-        if (prefMaster[addrName]) {
-            return prefMaster[addrName];
+        if (!prefMaster) {
+            // デバッグログ: 都道府県名自体がマスタに存在しない場合
+            console.warn(`[マスタ未登録の都道府県] API送出: "${prefName}" (観測点: ${addrName})`);
+            return null;
         }
+
+        if (prefMaster[addrName]) return prefMaster[addrName];
 
         const match = addrName.match(/^.*?[市町村区]+/);
         const baseCityName = match ? match[0] : addrName;
-        if (prefMaster[baseCityName]) {
-            return prefMaster[baseCityName];
-        }
+        if (prefMaster[baseCityName]) return prefMaster[baseCityName];
 
         for (const cityKey in prefMaster) {
             if (addrName.endsWith(cityKey) || baseCityName === cityKey || cityKey.includes(baseCityName)) {
@@ -347,6 +265,8 @@
             }
         }
 
+        // デバッグログ: 都道府県はあったが、市町村名がどうしても一致しなかった場合
+        console.warn(`[市町村マッピング失敗] 都道府県: "${prefName}", API送出市町村: "${addrName}" (判定ベース: "${baseCityName}")`);
         return null;
     }
 
@@ -365,11 +285,8 @@
                 const found = data.find(item => item.id === targetId);
                 if (found) eq = found;
             }
-
             await renderEarthquake(eq);
-        } catch (e) {
-            console.error("APIの取得に失敗しました:", e);
-        }
+        } catch (e) { console.error("API取得失敗:", e); }
     }
 
     async function checkEEW(targetTimeStr) {
@@ -378,26 +295,15 @@
             const eewRes = await fetch("https://api.p2pquake.net/v2/history?codes=556&limit=10");
             const eewData = await eewRes.json();
             if (!eewData || eewData.length === 0) return false;
-
             const targetMinute = targetTimeStr.substring(0, 16);
-            return eewData.some(eew => {
-                if (eew.earthquake && eew.earthquake.originTime) {
-                    const eewMinute = eew.earthquake.originTime.substring(0, 16);
-                    return targetMinute === eewMinute;
-                }
-                return false;
-            });
-        } catch (err) {
-            console.error("EEWデータの取得・判定に失敗しました:", err);
-            return false;
-        }
+            return eewData.some(eew => eew.earthquake && eew.earthquake.originTime && eew.earthquake.originTime.substring(0, 16) === targetMinute);
+        } catch (err) { return false; }
     }
 
     async function renderEarthquake(eq) {
         const earth = eq.earthquake;
         const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
-
         let boundsPoints = [];
 
         if (earth.time) {
@@ -411,55 +317,26 @@
         
         document.getElementById('val-hypocenter').innerText = hypocenterName;
         document.getElementById('val-magnitude').innerText = earth.hypocenter.magnitude === -1 ? "Ｍ不定" : `Ｍ${earth.hypocenter.magnitude}`;
-        
-        let depthStr = "ごく浅い";
-        if (earth.hypocenter.depth > 0) depthStr = `約${earth.hypocenter.depth}km`;
-        if (earth.hypocenter.depth === -1) depthStr = "深さ不明";
-        document.getElementById('val-depth').innerText = depthStr;
+        document.getElementById('val-depth').innerText = earth.hypocenter.depth > 0 ? `約${earth.hypocenter.depth}km` : (earth.hypocenter.depth === -1 ? "深さ不明" : "ごく浅い");
 
         const maxInt = earth.maxScale;
-        const bannerContainer = document.getElementById('max-intensity-banner');
-        if (intensityMap[maxInt]) {
-            bannerContainer.style.backgroundImage = `url('assets/banner/${intensityMap[maxInt].banner}')`;
-        } else {
-            bannerContainer.style.backgroundImage = `url('assets/banner/b0.svg')`;
-        }
+        document.getElementById('max-intensity-banner').style.backgroundImage = `url('assets/banner/${intensityMap[maxInt] ? intensityMap[maxInt].banner : 'b0.svg'}')`;
 
-        const tsunamiDom = document.getElementById('banner-tsunami');
         const domesticTsunami = earth.domesticTsunami || "None";
-        if (tsunamiMap[domesticTsunami]) {
-            tsunamiDom.src = `assets/banner/${tsunamiMap[domesticTsunami]}`;
-        }
+        document.getElementById('banner-tsunami').src = `assets/banner/${tsunamiMap[domesticTsunami] || 't2.svg'}`;
 
-        const enchiDom = document.getElementById('banner-enchi');
         const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0;
+        if (isEnchi) document.getElementById('banner-enchi').classList.remove('dimmed');
+        else document.getElementById('banner-enchi').classList.add('dimmed');
 
-        if (isEnchi) {
-            enchiDom.classList.remove('dimmed');
-        } else {
-            enchiDom.classList.add('dimmed');
-        }
-
-        const eewDom = document.getElementById('banner-eew');
-        const hasEEW = await checkEEW(earth.time);
-        if (hasEEW) {
-            eewDom.classList.remove('dimmed');
-        } else {
-            eewDom.classList.add('dimmed');
-        }
+        if (await checkEEW(earth.time)) document.getElementById('banner-eew').classList.remove('dimmed');
+        else document.getElementById('banner-eew').classList.add('dimmed');
 
         if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
-            const epiLat = earth.hypocenter.latitude;
-            const epiLng = earth.hypocenter.longitude;
-            boundsPoints.push([epiLat, epiLng]);
-
-            const epicenterIcon = L.divIcon({
-                className: 'epicenter-icon',
-                html: `<img src="assets/icons/shingen.png" alt="震源地">`,
-                iconSize: [60, 60],
-                iconAnchor: [30, 30]
-            });
-            L.marker([epiLat, epiLng], { icon: epicenterIcon }).addTo(map);
+            boundsPoints.push([earth.hypocenter.latitude, earth.hypocenter.longitude]);
+            L.marker([earth.hypocenter.latitude, earth.hypocenter.longitude], {
+                icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] })
+            }).addTo(map);
         }
 
         const saibunMaxScale = {};
@@ -471,41 +348,33 @@
 
             const saibunName = convertToSaibunNameWithPref(prefName, addrName);
 
-            if (saibunName && saibunFeatures[saibunName]) {
-                if (!saibunMaxScale[saibunName] || scale > saibunMaxScale[saibunName]) {
-                    saibunMaxScale[saibunName] = scale;
+            if (saibunName) {
+                if (saibunFeatures[saibunName]) {
+                    if (!saibunMaxScale[saibunName] || scale > saibunMaxScale[saibunName]) {
+                        saibunMaxScale[saibunName] = scale;
+                    }
+                } else {
+                    // デバッグログ: 細分区域名は特定できたが、GeoJSON(saibun.json)側に該当する境界データがない場合
+                    console.error(`[GeoJSON不一致] 細分区域 "${saibunName}" が saibun.json の中に見つかりません。`);
                 }
             }
         });
 
         for (const saibunName in saibunMaxScale) {
             const finalScale = saibunMaxScale[saibunName];
-            
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
                 boundsPoints.push(center);
-
-                const iconPath = `assets/icons/${intensityMap[finalScale].icon}`;
-                const icon = L.divIcon({
-                    className: 'intensity-icon',
-                    html: `<img src="${iconPath}" alt="震度${finalScale}">`,
-                    iconSize: [50, 50],
-                    iconAnchor: [25, 25]
-                });
-
-                L.marker(center, { icon: icon }).addTo(map);
+                L.marker(center, {
+                    icon: L.divIcon({ className: 'intensity-icon', html: `<img src="assets/icons/${intensityMap[finalScale].icon}" alt="震度${finalScale}">`, iconSize: [50, 50], iconAnchor: [25, 25] })
+                }).addTo(map);
             }
         }
 
         if (isEnchi) {
             map.setView([20, 140], 3);
         } else if (boundsPoints.length > 0) {
-            const bounds = L.latLngBounds(boundsPoints);
-            map.fitBounds(bounds, {
-                paddingTopLeft: [50, 220],
-                paddingBottomRight: [50, 50],
-                maxZoom: 8
-            });
+            map.fitBounds(L.latLngBounds(boundsPoints), { paddingTopLeft: [50, 220], paddingBottomRight: [50, 50], maxZoom: 8 });
         }
     }
 
