@@ -39,7 +39,7 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 189px;
+            height: 190px;
             background-image: url('assets/back.svg');
             background-size: 100% 100%;
             background-repeat: no-repeat;
@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; }
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -254,20 +254,10 @@
         if (!prefName || !addrName) return null;
 
         if (prefName === "東京都") {
-            if (addrName.includes("大島町")) {
-                return "伊豆大島"; 
-            }
-            if (addrName.includes("利島村") || addrName.includes("新島村")) {
-                return "新島"; 
-            }
-            if (addrName.includes("神津島村")) {
-                return "神津島"; 
-            }
-            if (addrName.includes("三宅村") || addrName.includes("御蔵島村")) {
-                return "三宅島"; 
-            }
-            if (addrName.includes("八丈町") || addrName.includes("青ヶ島村")) {
-                return "八丈島"; 
+            if (addrName.includes("大島") || addrName.includes("利島村") || addrName.includes("新島村") || 
+                addrName.includes("神津島村") || addrName.includes("三宅村") || addrName.includes("御蔵島村") ||
+                addrName.includes("青ヶ島村") || addrName.includes("八丈町")) {
+                return "伊豆諸島"; 
             }
             if (addrName.includes("小笠原村")) {
                 return "小笠原諸島";
