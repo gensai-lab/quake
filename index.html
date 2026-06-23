@@ -322,7 +322,7 @@
         }
     }
 
-    // コード556(緊急地震速報)の履歴を取得し、対象の地震日時と重なっているか調べる関数
+    // コード556(緊急地震速報)の履歴を取得し、対象の地震日時と「分まで」重なっているか調べる関数
     async function checkEEW(targetTimeStr) {
         if (!targetTimeStr) return false;
         try {
@@ -330,14 +330,13 @@
             const eewData = await eewRes.json();
             if (!eewData || eewData.length === 0) return false;
 
-            // 分単位まで一致するか判定するため「YYYY/MM/DD HH:mm」形式にトリミング
-            // 例: "2026/06/23 15:40:22" -> "2026/06/23 15:40"
+            // 551の発生時刻（例: "2026/06/23 11:49:00"）を分単位「YYYY/MM/DD HH:mm」形式に切り出し
             const targetMinute = targetTimeStr.substring(0, 16);
 
-            // 556データ内に日時（分単位）が完全に重なるものがあるか検索
+            // 556のデータ内に、地震発生時刻（originTime）の分単位が重なるものがあるか検索
             return eewData.some(eew => {
-                if (eew.earthquake && eew.earthquake.time) {
-                    const eewMinute = eew.earthquake.time.substring(0, 16);
+                if (eew.earthquake && eew.earthquake.originTime) {
+                    const eewMinute = eew.earthquake.originTime.substring(0, 16);
                     return targetMinute === eewMinute;
                 }
                 return false;
@@ -400,12 +399,12 @@
 
         // --- EEWバナーの自動点灯ロジック ---
         const eewDom = document.getElementById('banner-eew');
-        const hasEEW = await checkEEW(earth.time); // 非同期でコード556の重なりをチェック
+        const hasEEW = await checkEEW(earth.time); // 551のearthquake.timeを渡して照合
 
         if (hasEEW) {
-            eewDom.classList.remove('dimmed'); // 重なっていればクッキリ（EEW発表状態）
+            eewDom.classList.remove('dimmed'); // 分単位まで一致していればクッキリ点灯
         } else {
-            eewDom.classList.add('dimmed');    // 重なっていなければうっすら表示(0.1)
+            eewDom.classList.add('dimmed');    // 一致しなければうっすら
         }
 
         // --- 震央マッピング (shingen.png を使用) ---
