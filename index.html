@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; }
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -216,8 +216,16 @@
         try {
             const saibunRes = await fetch('assets/map/saibun.json');
             const saibunData = await saibunRes.json();
+            
+            // saibun.jsonのプロパティ読み込み処理を大幅に強化（表記揺れや空白対策）
             saibunData.features.forEach(f => {
-                if (f.properties && f.properties.name) saibunFeatures[f.properties.name] = f;
+                if (f.properties) {
+                    const rawName = f.properties.name || f.properties.NAME || f.properties.name_ja;
+                    if (rawName) {
+                        const cleanedName = rawName.toString().trim();
+                        saibunFeatures[cleanedName] = f;
+                    }
+                }
             });
 
             saibunLayer = L.geoJSON(saibunData, {
@@ -246,13 +254,12 @@
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
-        // 【例外ハードコーディングルール】
-        // マスタとの紐付けが失敗する代表的な特殊地名を強制的に正しい細分区域名にマッピングします
+        // 【例外ハードコーディングルール】「伊豆諸島」に綺麗に戻しました
         if (prefName === "東京都") {
             if (addrName.includes("大島町") || addrName.includes("利島村") || addrName.includes("新島村") || 
-                addrName.includes("三宅村") || addrName.includes("御蔵島村") || addrName.includes("青ヶ島村") || 
-                addrName.includes("八丈町")) {
-                return "伊豆諸島";
+                addrName.includes("神津島村") || addrName.includes("三宅村") || addrName.includes("御蔵島村") ||
+                addrName.includes("青ヶ島村") || addrName.includes("八丈町")) {
+                return "伊豆諸島"; 
             }
             if (addrName.includes("小笠原村")) {
                 return "小笠原諸島";
@@ -384,12 +391,14 @@
             const saibunName = convertToSaibunNameWithPref(prefName, addrName);
 
             if (saibunName) {
-                if (saibunFeatures[saibunName]) {
-                    if (!saibunMaxScale[saibunName] || scale > saibunMaxScale[saibunName]) {
-                        saibunMaxScale[saibunName] = scale;
+                // ここでもトリムした状態で一致チェック
+                const targetKey = saibunName.trim();
+                if (saibunFeatures[targetKey]) {
+                    if (!saibunMaxScale[targetKey] || scale > saibunMaxScale[targetKey]) {
+                        saibunMaxScale[targetKey] = scale;
                     }
                 } else {
-                    console.error(`[GeoJSON不一致] 細分区域 "${saibunName}" が saibun.json の中に見つかりません。`);
+                    console.error(`[GeoJSON不一致] 細分区域 "${targetKey}" が saibun.json の中に見つかりません。`);
                 }
             }
         });
