@@ -213,7 +213,7 @@
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
     let shingenMaster = {};    
-    let cityToSaibunMap = {};  // 都道府県を考慮したマスタオブジェクトに修正
+    let cityToSaibunMap = {};  
 
     function parseShingenCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
@@ -230,7 +230,7 @@
         return result;
     }
 
-    // 震度観測点CSVを解析する関数（都道府県ごとのマッピングに対応）
+    // 震度観測点CSVを解析する関数（例外地域対応版）
     function parseObservationCSV(csvText) {
         const lines = csvText.split(/\r?\n/);
         const result = {};
@@ -238,17 +238,23 @@
             if (!lines[i]) continue;
             const cols = lines[i].split(',');
             if (cols.length >= 2) {
-                const saibunName = cols[0].trim(); // 例: 埼玉県南部
-                const cityName = cols[1].trim();   // 例: さいたま市緑区
+                const saibunName = cols[0].trim(); 
+                const cityName = cols[1].trim();   
                 
-                // 細分区域名（例:「埼玉県南部」）の先頭2〜4文字から都道府県名を推測抽出
                 let prefKey = "";
-                if (saibunName.startsWith("北海道")) prefKey = "北海道";
-                else if (saibunName.startsWith("東京")) prefKey = "東京都";
-                else if (saibunName.startsWith("京都")) prefKey = "京都府";
-                else if (saibunName.startsWith("大阪")) prefKey = "大阪府";
-                else if (saibunName.length > 2) {
-                    // 「神奈川県西部」なら「神奈川県」、「青森県津軽北部」なら「青森県」
+                
+                // 【例外対応】細分区域名に都道府縣の名前が含まれない地域への対策
+                if (saibunName.includes("伊豆諸島") || saibunName.includes("小笠原")) {
+                    prefKey = "東京都";
+                } else if (saibunName.startsWith("北海道")) {
+                    prefKey = "北海道";
+                } else if (saibunName.startsWith("東京")) {
+                    prefKey = "東京都";
+                } else if (saibunName.startsWith("京都")) {
+                    prefKey = "京都府";
+                } else if (saibunName.startsWith("大阪")) {
+                    prefKey = "大阪府";
+                } else {
                     const matchPref = saibunName.match(/^.*?[都道府縣県]/);
                     prefKey = matchPref ? matchPref[0] : saibunName.substring(0, 3);
                 }
@@ -319,27 +325,22 @@
         return [center.lat, center.lng];
     }
 
-    // 都道府県名(prefName)と市町村名(addrName)の両方を使って安全に細分区域を引く関数
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
-        // 対象の都道府県マスタが存在するか確認
         const prefMaster = cityToSaibunMap[prefName];
         if (!prefMaster) return null;
 
-        // 1. 完全一致チェック
         if (prefMaster[addrName]) {
             return prefMaster[addrName];
         }
 
-        // 2. 市町村レベルでの完全一致チェック
         const match = addrName.match(/^.*?[市町村区]+/);
         const baseCityName = match ? match[0] : addrName;
         if (prefMaster[baseCityName]) {
             return prefMaster[baseCityName];
         }
 
-        // 3. 都道府県を絞った上での、安全な末尾部分一致
         for (const cityKey in prefMaster) {
             if (addrName.endsWith(cityKey) || baseCityName === cityKey || cityKey.includes(baseCityName)) {
                 return prefMaster[cityKey];
@@ -464,11 +465,10 @@
         const saibunMaxScale = {};
 
         points.forEach(p => {
-            const prefName = p.pref; // P2Pから送られてくる都道府県名（例: "埼玉県"）
-            const addrName = p.addr; // P2Pから送られてくる地域・市町村名（例: "緑区"）
+            const prefName = p.pref; 
+            const addrName = p.addr; 
             const scale = p.scale;
 
-            // 都道府県と市町村名のコンビで安全にマッピングを抽出
             const saibunName = convertToSaibunNameWithPref(prefName, addrName);
 
             if (saibunName && saibunFeatures[saibunName]) {
