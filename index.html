@@ -463,7 +463,7 @@
 
         // ズーム処理
         if (isEnchi) {
-            map.setView([20, 140], 3);
+            map.setView([36.5, 138.0], 5); // 遠地判定時は日本全体を見渡す初期位置にする
         } else if (hasEpicenter) {
             if (zoomBoundsPoints.length > 0) {
                 let symmetricPoints = [];
