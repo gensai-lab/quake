@@ -305,16 +305,20 @@
         return [center.lat, center.lng];
     }
 
-    // 市町村名から細分区域名へと変換する関数
+    // 市町村名から細分区域名へと変換する関数（誤判定・過剰マッチ完全対策版）
     function convertToSaibunName(addrName) {
         if (!addrName) return null;
 
-        for (const cityKey in cityToSaibunMap) {
-            if (addrName.includes(cityKey)) {
-                return cityToSaibunMap[cityKey];
-            }
+        // 【安全化1】P2Pから送られてくる文字列がマスタの都市名（例：「さいたま市緑区」など）と完全に等しい、
+        // もしくは「後ろから部分一致」するかを厳密に精査。
+        // 単に「includes」だと、「秋田市」が「◯◯市秋田町」等に誤反応するのを防ぐため、文字数ベースで確実なもののみ抽出。
+        
+        // 1. マスタの中に「送られてきた文字列そのもの」または「市町村名レベルで完全一致」するものがあるか
+        if (cityToSaibunMap[addrName]) {
+            return cityToSaibunMap[addrName];
         }
 
+        // 2. 「◯◯県◯◯市」のような形式から安全に末尾の市町村区を切り出し
         const match = addrName.match(/^.*?[市町村区]+/);
         const baseCityName = match ? match[0] : addrName;
 
@@ -322,11 +326,13 @@
             return cityToSaibunMap[baseCityName];
         }
 
+        // 3. ループ処理による部分一致は、誤反応の元になるため「マスタのキー（市町村名）が、送られてきた文字列の末尾にきれいにフィットするか」で厳格に判定
         for (const cityKey in cityToSaibunMap) {
-            if (baseCityName.includes(cityKey)) {
+            if (addrName.endsWith(cityKey) || baseCityName === cityKey) {
                 return cityToSaibunMap[cityKey];
             }
         }
+
         return null;
     }
 
@@ -378,7 +384,6 @@
         const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
 
-        // 表示範囲を算出するための座標配列
         let boundsPoints = [];
 
         if (earth.time) {
@@ -429,11 +434,10 @@
             eewDom.classList.add('dimmed');
         }
 
-        // 震央マッピング
         if (earth.hypocenter.latitude !== -1 && earth.hypocenter.longitude !== -1) {
             const epiLat = earth.hypocenter.latitude;
             const epiLng = earth.hypocenter.longitude;
-            boundsPoints.push([epiLat, epiLng]); // 範囲計算に追加
+            boundsPoints.push([epiLat, epiLng]);
 
             const epicenterIcon = L.divIcon({
                 className: 'epicenter-icon',
@@ -458,13 +462,12 @@
             }
         });
 
-        // 震度アイコンの配置と座標の収集
         for (const saibunName in saibunMaxScale) {
             const finalScale = saibunMaxScale[saibunName];
             
             if (intensityMap[finalScale]) {
-                const center = getFeatureCenter(saibunFeatures[saibunName]); // [lat, lng]
-                boundsPoints.push(center); // 範囲計算に追加
+                const center = getFeatureCenter(saibunFeatures[saibunName]);
+                boundsPoints.push(center);
 
                 const iconPath = `assets/icons/${intensityMap[finalScale].icon}`;
                 const icon = L.divIcon({
@@ -478,19 +481,15 @@
             }
         }
 
-        // --- 自動ズーム（範囲調整）ロジック ---
+        // 自動ズーム
         if (isEnchi) {
-            // 遠地地震の場合は、固定で太平洋広域を見せるビューに設定
             map.setView([20, 140], 3);
         } else if (boundsPoints.length > 0) {
-            // 震央と震度プロットの全ての座標を囲む外接矩形（LatLngBounds）を作成
             const bounds = L.latLngBounds(boundsPoints);
-            
-            // 上部ヘッダー（高190px）でアイコンが隠れないよう、paddingTopに余裕を持たせてフィットさせる
             map.fitBounds(bounds, {
-                paddingTopLeft: [50, 220],  // 左に50px、上に220px（ヘッダー回避）の余白
+                paddingTopLeft: [50, 220],
                 paddingBottomRight: [50, 50],
-                maxZoom: 8                  // 局所的な地震でもズームしすぎないように最大値を制限
+                maxZoom: 8
             });
         }
     }
