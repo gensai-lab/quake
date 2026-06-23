@@ -83,7 +83,7 @@
         .status-banner.dimmed { opacity: 0.1 !important; }
 
         .intensity-icon { background: none; border: none; }
-        .intensity-icon img { width: 50px; height: 50px; }
+        .intensity-icon img { width: 50px; height: 50px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.6)); }
 
         .epicenter-icon { background: none; border: none; }
         .epicenter-icon img { width: 60px; height: 60px; }
@@ -255,16 +255,30 @@
         // 1. 完全一致チェック
         if (prefMaster[addrName]) return prefMaster[addrName];
 
-        // 2. 市町村レベルでの切り出し（大字・地区名の切り落としロジックを修正）
-        // 「手前からの最短マッチ」にすることで、「渋川市村上」から正確に「渋川市」を切り出す
-        const match = addrName.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|［.*?］|市|町|村|区)/);
-        const baseCityName = match ? match[0] : addrName;
+        // 2. 「東京利島村」や「静岡菊川市」などの頭につく都道府県名の除去処理
+        let cleanedAddr = addrName;
+        if (addrName.startsWith(prefName)) {
+            cleanedAddr = addrName.substring(prefName.length);
+        } else {
+            // 省略形（例: 東京都→「東京」）の除去
+            const shortPref = prefName.replace(/[都府県]$/, '');
+            if (addrName.startsWith(shortPref)) {
+                cleanedAddr = addrName.substring(shortPref.length);
+            }
+        }
+
+        // 3. 市町村・空港レベルでの切り出し
+        const match = cleanedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
+        const baseCityName = match ? match[0] : cleanedAddr;
         
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
 
-        // 3. 安全な末尾部分一致・包含チェック
+        // 4. 双方向の部分一致・包含チェック（「大島町」と「伊豆大島町」の相互対応など）
         for (const cityKey in prefMaster) {
-            if (addrName.endsWith(cityKey) || baseCityName === cityKey || cityKey.includes(baseCityName)) {
+            if (cleanedAddr.endsWith(cityKey) || 
+                baseCityName === cityKey || 
+                cityKey.includes(baseCityName) || 
+                baseCityName.includes(cityKey)) {
                 return prefMaster[cityKey];
             }
         }
