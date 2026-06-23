@@ -156,17 +156,17 @@
         }
     };
 
-    // 優先度（重なり順）マッピング
+    // 優先度（重なり順）マッピング: 震度7が最も高く（前面）、震度1が低く（背面側）なるように設定
     const intensityMap = {
-        "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 110, level: 1 },
-        "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 120, level: 2 },
-        "30": { banner: "b3.svg", icon: "s3.svg", zIndex: 130, level: 3 },
-        "40": { banner: "b4.svg", icon: "s4.svg", zIndex: 140, level: 4 },
-        "45": { banner: "b5m.svg", icon: "s5m.svg", zIndex: 150, level: 5 },
-        "50": { banner: "b5p.svg", icon: "s5p.svg", zIndex: 160, level: 6 },
-        "55": { banner: "b6m.svg", icon: "s6m.svg", zIndex: 170, level: 7 },
-        "60": { banner: "b6p.svg", icon: "s6p.svg", zIndex: 180, level: 8 },
-        "70": { banner: "b7.svg", icon: "s7.svg", zIndex: 190, level: 9 }
+        "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 1000, level: 1 },
+        "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 2000, level: 2 },
+        "30": { banner: "b3.svg", icon: "s3.svg", zIndex: 3000, level: 3 },
+        "40": { banner: "b4.svg", icon: "s4.svg", zIndex: 4000, level: 4 },
+        "45": { banner: "b5m.svg", icon: "s5m.svg", zIndex: 5000, level: 5 },
+        "50": { banner: "b5p.svg", icon: "s5p.svg", zIndex: 6000, level: 6 },
+        "55": { banner: "b6m.svg", icon: "s6m.svg", zIndex: 7000, level: 7 },
+        "60": { banner: "b6p.svg", icon: "s6p.svg", zIndex: 8000, level: 8 },
+        "70": { banner: "b7.svg", icon: "s7.svg", zIndex: 9000, level: 9 }
     };
 
     const tsunamiMap = {
@@ -408,12 +408,12 @@
         if (await checkEEW(earth.time)) document.getElementById('banner-eew').classList.remove('dimmed');
         else document.getElementById('banner-eew').classList.add('dimmed');
 
-        // 震源ピンの配置
+        // 震源ピンの配置（もっとも背面にするため zIndexOffset: 50、paneを設定）
         if (hasEpicenter) {
             L.marker([epicenterLat, epicenterLng], {
                 icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] }),
-                zIndexOffset: 100 
-            }).addTo(map);
+                pane: 'markerPane'
+            }).addTo(map).setZIndexOffset(50);
         }
 
         const saibunMaxScale = {};
@@ -443,10 +443,11 @@
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
                 
+                // paneを指定し、一貫したzIndexOffsetを確実に適用
                 L.marker(center, {
                     icon: L.divIcon({ className: 'intensity-icon', html: `<img src="assets/icons/${intensityMap[finalScale].icon}" alt="震度${finalScale}">`, iconSize: [50, 50], iconAnchor: [25, 25] }),
-                    zIndexOffset: intensityMap[finalScale].zIndex
-                }).addTo(map);
+                    pane: 'markerPane'
+                }).addTo(map).setZIndexOffset(intensityMap[finalScale].zIndex);
 
                 // ズーム条件判定
                 const currentLevel = intensityMap[finalScale].level;
