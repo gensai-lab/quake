@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>みんなの減災ラボ - 地震情報ツール</title>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         /* フォントの設定 */
@@ -15,7 +14,7 @@
             font-style: normal;
         }
 
-        /* 16:9 配信画面サイズを想定したリセット */
+        /* 16:9 配信画面サイズを想定した完全リセット */
         * {
             margin: 0;
             padding: 0;
@@ -48,261 +47,9 @@
             background-size: cover;
             display: flex;
             align-items: center;
-            padding: 0 20px;
             z-index: 10;
-        }
-
-        /* 左側最大震度バナー */
-        .max-shindo-banner {
-            height: 100%;
-            display: flex;
-            align-items: center;
-        }
-        .max-shindo-banner img {
-            height: 90%;
-            object-fit: contain;
-        }
-
-        /* 右側補助バナーエリア */
-        .right-banners {
-            margin-left: auto;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            height: 100%;
-            padding-right: 20px;
-        }
-        .right-banners img {
-            height: 45px;
-            object-fit: contain;
-        }
-
-        /* クレジット表記 */
-        .credit {
-            position: absolute;
-            right: 15px;
-            bottom: 5px;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.4);
-            z-index: 11;
-        }
-
-        /* 地図エリア */
-        #map {
-            flex: 1;
-            width: 100%;
-            background-color: #162238; /* 海の色 */
-        }
-
-        /* Leafletのコントロールを非表示（スクショ・配信画面用） */
-        .leaflet-control-container {
-            display: none !important;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        <!-- 上部ヘッダー -->
-        <header class="header-area">
-            <!-- 最大震度バナー -->
-            <div class="max-shindo-banner">
-                <img id="banner-max-shindo" src="assets/banner/b0.svg" alt="最大震度">
-            </div>
-
-            <!-- 右側状況バナー -->
-            <div class="right-banners">
-                <img id="banner-tsunami" src="assets/banner/t1.svg" alt="津波情報">
-                <img id="banner-eew" src="assets/banner/eew.svg" alt="EEW" style="display: none;">
-                <img id="banner-enchi" src="assets/banner/enchi.svg" alt="遠地" style="display: none;">
-            </div>
-
-            <!-- クレジット -->
-            <div class="credit">©Kactuif</div>
-        </header>
-
-        <!-- マップ描画エリア -->
-        <div id="map"></div>
-    </div>
-
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // --- 震度コードマッピング関数 ---
-        function getShindoKey(scale) {
-            const mapping = {
-                10: '1',  20: '2',  30: '3',  40: '4',
-                45: '5m', 50: '5p', 55: '6m', 60: '6p', 70: '7'
-            };
-            return mapping[scale] || '0';
-        }
-
-        // --- 津波情報マッピング関数 ---
-        function getTsunamiBanner(domesticTsunami) {
-            switch(domesticTsunami) {
-                case 'None': return 'assets/banner/t2.svg'; // 心配なし
-                case 'Checking': return 'assets/banner/t1.svg'; // 調査中
-                case 'NonEffective': return 'assets/banner/t3.svg'; // 若干の海面変動
-                case 'Watch':
-                case 'Warning': return 'assets/banner/t4.svg'; // 津波情報発表中
-                default: return 'assets/banner/t1.svg';
-            }
-        }
-
-        // --- Leaflet マップ初期化 ---
-        const map = L.map('map', {
-            zoomControl: false,
-            attributionControl: false,
-            dragging: false,
-            doubleClickZoom: false,
-            scrollWheelZoom: false,
-            boxZoom: false
-        }).setView([36.5, 137.0], 5);
-
-        // --- GeoJSONレイヤーの基本スタイル ---
-        const geoJsonStyle = {
-            color: "#4A5A80",    // 境界線の色
-            weight: 1,
-            fillColor: "#1D2D44", // 陸地の色
-            fillOpacity: 1
-        };
-
-        // 各種GeoJSONの読み込みとマップ初期化
-        Promise.all([
-            fetch('assets/map/pref.json').then(res => res.json()).catch(() => null),
-            fetch('assets/map/saibun.json').then(res => res.json()).catch(() => null),
-            fetch('assets/map/shionuma.json').then(res => res.json()).catch(() => null)
-        ]).then(([prefData, saibunData, shionumaData]) => {
-            if (saibunData) {
-                L.geoJSON(saibunData, { style: geoJsonStyle }).addTo(map);
-            } else if (prefData) {
-                L.geoJSON(prefData, { style: geoJsonStyle }).addTo(map);
-            }
-            if (shionumaData) {
-                L.geoJSON(shionumaData, { style: { color: "#3a4a6a", weight: 1, fillOpacity: 0 } }).addTo(map);
-            }
-            
-            // 地図データの展開が終わったらP2Pからデータを取得
-            fetchEarthquakeData();
-        });
-
-        // --- P2P地震情報データの取得と反映 ---
-        function fetchEarthquakeData() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const targetId = urlParams.get('id');
-
-            // 直近30件を取得
-            fetch('https://api.p2pquake.net/v2/history?codes=551&limit=30')
-                .then(response => response.json())
-                .then(data => {
-                    if (!data || data.length === 0) return;
-
-                    // パラメータのIDに一致するデータを検索。なければ最新(0番目)を使用
-                    let eqData = data[0];
-                    if (targetId) {
-                        const found = data.find(item => item.id === targetId);
-                        if (found) eqData = found;
-                    }
-
-                    renderEarthquakeInfo(eqData);
-                })
-                .catch(err => console.error("データ取得エラー:", err));
-        }
-
-        // --- 画面へのデータレンダリング ---
-        function renderEarthquakeInfo(data) {
-            const eq = data.earthquake;
-            if (!eq) return;
-
-            // 1. 最大震度バナーの切り替え
-            const shindoKey = getShindoKey(eq.maxScale);
-            document.getElementById('banner-max-shindo').src = `assets/banner/b${shindoKey}.svg`;
-
-            // 2. 津波バナーの切り替え
-            const tsunamiSrc = getTsunamiBanner(eq.domesticTsunami);
-            document.getElementById('banner-tsunami').src = tsunamiSrc;
-
-            // 3. 遠地地震フラグの処理
-            if (data.code === 552) {
-                document.getElementById('banner-enchi').style.display = 'block';
-            }
-
-            // 4. 各地の震度アイコンを地図上にプロット
-            if (data.points && data.points.length > 0) {
-                plotShindoIcons(data.points);
-            }
-        }
-
-        // --- 震度アイコンのプロット処理 ---
-        function plotShindoIcons(points) {
-            points.forEach(point => {
-                if (point.latitude && point.longitude) {
-                    const shindoKey = getShindoKey(point.scale);
-                    
-                    const shindoIcon = L.icon({
-                        iconUrl: `assets/icons/s${shindoKey}.svg`,
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 12]
-                    });
-
-                    L.marker([point.latitude, point.longitude], { icon: shindoIcon }).addTo(map);
-                }
-            });
-        }
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>みんなの減災ラボ - 地震情報ツール</title>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        /* フォントの設定 */
-        @font-face {
-            font-family: 'UDKakugo-Large';
-            src: url('assets/fonts/FOT-UDKakugo_LargePr6-DB.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        /* 16:9 配信画面サイズを想定したリセット */
-        * {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: 'UDKakugo-Large', sans-serif;
-            background-color: #0d1b2a;
-            color: #ffffff;
-        }
-
-        /* メインコンテナ（16:9ベース） */
-        .container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* 上部情報ヘッダーエリア */
-        .header-area {
-            position: relative;
-            width: 100%;
-            height: 120px;
-            background: url('assets/back.svg') no-repeat center center;
-            background-size: cover;
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            z-index: 10;
         }
 
         /* 左側最大震度バナー */
@@ -310,34 +57,34 @@
             height: 100%;
             display: flex;
             align-items: center;
+            margin: 0;
+            padding: 0;
         }
         .max-shindo-banner img {
-            height: 90%;
+            height: 100%;
             object-fit: contain;
+            margin: 0;
+            padding: 0;
+            display: block;
         }
 
         /* 右側補助バナーエリア */
         .right-banners {
             margin-left: auto;
             display: flex;
-            gap: 10px;
             align-items: center;
             height: 100%;
-            padding-right: 20px;
+            margin-top: 0;
+            margin-bottom: 0;
+            margin-right: 0;
+            padding: 0;
         }
         .right-banners img {
-            height: 45px;
+            height: 100%;
             object-fit: contain;
-        }
-
-        /* クレジット表記 */
-        .credit {
-            position: absolute;
-            right: 15px;
-            bottom: 5px;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.4);
-            z-index: 11;
+            margin: 0;
+            padding: 0;
+            display: block;
         }
 
         /* 地図エリア */
@@ -356,29 +103,21 @@
 <body>
 
     <div class="container">
-        <!-- 上部ヘッダー -->
         <header class="header-area">
-            <!-- 最大震度バナー -->
             <div class="max-shindo-banner">
                 <img id="banner-max-shindo" src="assets/banner/b0.svg" alt="最大震度">
             </div>
 
-            <!-- 右側状況バナー -->
             <div class="right-banners">
                 <img id="banner-tsunami" src="assets/banner/t1.svg" alt="津波情報">
                 <img id="banner-eew" src="assets/banner/eew.svg" alt="EEW" style="display: none;">
                 <img id="banner-enchi" src="assets/banner/enchi.svg" alt="遠地" style="display: none;">
             </div>
-
-            <!-- クレジット -->
-            <div class="credit">©Kactuif</div>
         </header>
 
-        <!-- マップ描画エリア -->
         <div id="map"></div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // --- 震度コードマッピング関数 ---
