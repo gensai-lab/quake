@@ -157,7 +157,6 @@
     };
 
     // 優先度（重なり順）マッピング: 震度7が最も高く（前面）、震度1が低く（背面側）なるように設定
-    // 数値でも文字列でも確実にマッチするように設定
     const intensityMap = {
         "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 1000, level: 1 },
         "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 2000, level: 2 },
@@ -279,28 +278,15 @@
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
+        // 特殊ケースのハンドリング
         if (prefName === "東京都") {
-            if (addrName.includes("大島町")) {
-                return "伊豆大島"; 
-            }
-            if (addrName.includes("利島村") || addrName.includes("新島村")) {
-                return "新島"; 
-            }
-            if (addrName.includes("神津島村")) {
-                return "神津島"; 
-            }
-            if (addrName.includes("三宅村") || addrName.includes("御蔵島村")) {
-                return "三宅島"; 
-            }
-            if (addrName.includes("八丈町") || addrName.includes("青ヶ島村")) {
-                return "八丈島"; 
-            }
-            if (addrName.includes("小笠原村")) {
-                return "小笠原諸島";
-            }
-            if (addrName.includes("東京国際空港") || addrName.includes("羽田")) {
-                return "東京都２３区";
-            }
+            if (addrName.includes("大島町")) return "伊豆大島"; 
+            if (addrName.includes("利島村") || addrName.includes("新島村")) return "新島"; 
+            if (addrName.includes("神津島村")) return "神津島"; 
+            if (addrName.includes("三宅村") || addrName.includes("御蔵島村")) return "三宅島"; 
+            if (addrName.includes("八丈町") || addrName.includes("青ヶ島村")) return "八丈島"; 
+            if (addrName.includes("小笠原村")) return "小笠原諸島";
+            if (addrName.includes("東京国際空港") || addrName.includes("羽田")) return "東京都２３区";
         }
         if (prefName === "千葉県" && (addrName.includes("成田国際空港") || addrName.includes("成田空港"))) {
             return "千葉県北東部";
@@ -309,8 +295,10 @@
         const prefMaster = cityToSaibunMap[prefName];
         if (!prefMaster) return null;
 
+        // 完全一致をチェック
         if (prefMaster[addrName]) return prefMaster[addrName];
 
+        // 都道府県名が先頭についていたら消去
         let cleanedAddr = addrName;
         if (addrName.startsWith(prefName)) {
             cleanedAddr = addrName.substring(prefName.length);
@@ -321,19 +309,27 @@
             }
         }
 
+        // 浜中町 -> 浜中、標茶町 -> 標茶 などの基本名を作成
         const match = cleanedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
         const baseCityName = match ? match[0] : cleanedAddr;
-        
-        if (prefMaster[baseCityName]) return prefMaster[baseCityName];
+        const superShortName = baseCityName.replace(/[市区町村]$/, ''); // 「町」などを完全に落とした名前
 
+        if (prefMaster[baseCityName]) return prefMaster[baseCityName];
+        if (prefMaster[superShortName]) return prefMaster[superShortName];
+
+        // マスタ側のキーとの部分一致・前方一致をループで厳密にチェック
         for (const cityKey in prefMaster) {
-            if (cleanedAddr.endsWith(cityKey) || 
-                baseCityName === cityKey || 
-                cityKey.includes(baseCityName) || 
-                baseCityName.includes(cityKey)) {
+            const cleanKey = cityKey.replace(/[市区町村]$/, '');
+            if (cleanedAddr.includes(cityKey) || 
+                cityKey.includes(cleanedAddr) ||
+                superShortName === cleanKey ||
+                cleanKey.startsWith(superShortName) ||
+                superShortName.startsWith(cleanKey)) {
                 return prefMaster[cityKey];
             }
         }
+        
+        console.warn(`[Match Failed] 細分区域の紐付けに失敗: ${prefName} ${addrName}`);
         return null;
     }
 
@@ -394,7 +390,6 @@
             document.getElementById('val-depth').innerText = earth.hypocenter.depth === -1 ? "深さ不明" : "ごく浅い";
         }
 
-        // maxScaleを文字列型に統一して判定
         const maxInt = String(earth.maxScale);
         document.getElementById('max-intensity-banner').style.backgroundImage = `url('assets/banner/${intensityMap[maxInt] ? intensityMap[maxInt].banner : 'b0.svg'}')`;
 
@@ -438,7 +433,6 @@
 
         // 各細分区域に震度ピンをマッピングし、最大震度エリアをズーム対象として集計
         for (const saibunName in saibunMaxScale) {
-            // 文字列型に明示的に変換してマッピングを確実に通す
             const finalScale = String(saibunMaxScale[saibunName]);
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
@@ -459,9 +453,7 @@
         if (isEnchi) {
             map.setView([36.5, 138.0], 5);
         } else if (hasEpicenter) {
-            // 最大震度を観測した地域がある場合
             if (zoomBoundsPoints.length > 0) {
-                // 最大震度エリアの座標リストに、必ず「震源地」も含めることで画面内に収まるように保証する
                 let targetPoints = [...zoomBoundsPoints];
                 targetPoints.push([epicenterLat, epicenterLng]);
 
@@ -471,7 +463,6 @@
                     maxZoom: 8
                 });
             } else {
-                // 最大震度データがうまく取れなかった等のフォールバック
                 map.setView([epicenterLat, epicenterLng], 7);
             }
         }
