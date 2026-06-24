@@ -173,6 +173,16 @@
         "None": "t2.svg", "Unknown": "t1.svg", "Checking": "t1.svg", "NonEffective": "t3.svg", "Watch": "t4.svg", "Warning": "t4.svg"
     };
 
+    // 観測点名（addrName）から細分区域名へ強制的に紐付ける例外設定マスタ
+    // 今後新しい例外地点が増えた場合は、ここに追加するだけで対応可能です。
+    const specialCases = {
+        "浜中町茶内": "根室地方南部",
+        "標茶町塘路": "根室地方南部",
+        "別海町常盤": "根室地方南部",
+        "別海町西春別": "根室地方南部",
+        "別海町本別海": "根室地方南部"
+    };
+
     let saibunLayer, prefLayer, shionumaLayer;
     let saibunFeatures = {};
     let shingenMaster = {};    
@@ -278,17 +288,24 @@
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
-        // 特殊ケースのハンドリング
-        if (prefName === "東京都") {
-            if (addrName.includes("大島町")) return "伊豆大島"; 
-            if (addrName.includes("利島村") || addrName.includes("新島村")) return "新島"; 
-            if (addrName.includes("神津島村")) return "神津島"; 
-            if (addrName.includes("三宅村") || addrName.includes("御蔵島村")) return "三宅島"; 
-            if (addrName.includes("八丈町") || addrName.includes("青ヶ島村")) return "八丈島"; 
-            if (addrName.includes("小笠原村")) return "小笠原諸島";
-            if (addrName.includes("東京国際空港") || addrName.includes("羽田")) return "東京都２３区";
+        const cleanedAddr = addrName.trim();
+
+        // 1. まず例外マスタ（specialCases）に登録があるかチェック
+        if (specialCases[cleanedAddr]) {
+            return specialCases[cleanedAddr];
         }
-        if (prefName === "千葉県" && (addrName.includes("成田国際空港") || addrName.includes("成田空港"))) {
+
+        // 2. 特殊ケースのハンドリング
+        if (prefName === "東京都") {
+            if (cleanedAddr.includes("大島町")) return "伊豆大島"; 
+            if (cleanedAddr.includes("利島村") || cleanedAddr.includes("新島村")) return "新島"; 
+            if (cleanedAddr.includes("神津島村")) return "神津島"; 
+            if (cleanedAddr.includes("三宅村") || cleanedAddr.includes("御蔵島村")) return "三宅島"; 
+            if (cleanedAddr.includes("八丈町") || cleanedAddr.includes("青ヶ島村")) return "八丈島"; 
+            if (cleanedAddr.includes("小笠原村")) return "小笠原諸島";
+            if (cleanedAddr.includes("東京国際空港") || cleanedAddr.includes("羽田")) return "東京都２３区";
+        }
+        if (prefName === "千葉県" && (cleanedAddr.includes("成田国際空港") || cleanedAddr.includes("成田空港"))) {
             return "千葉県北東部";
         }
 
@@ -296,23 +313,23 @@
         if (!prefMaster) return null;
 
         // 完全一致をチェック
-        if (prefMaster[addrName]) return prefMaster[addrName];
+        if (prefMaster[cleanedAddr]) return prefMaster[cleanedAddr];
 
         // 都道府県名が先頭についていたら消去
-        let cleanedAddr = addrName.trim();
-        if (cleanedAddr.startsWith(prefName)) {
-            cleanedAddr = cleanedAddr.substring(prefName.length);
+        let strippedAddr = cleanedAddr;
+        if (strippedAddr.startsWith(prefName)) {
+            strippedAddr = strippedAddr.substring(prefName.length);
         } else {
             const shortPref = prefName.replace(/[都府県]$/, '');
-            if (cleanedAddr.startsWith(shortPref)) {
-                cleanedAddr = cleanedAddr.substring(shortPref.length);
+            if (strippedAddr.startsWith(shortPref)) {
+                strippedAddr = strippedAddr.substring(shortPref.length);
             }
         }
 
-        // 先頭の市町村名部分（「浜中町茶内」なら「浜中町」まで）を正規表現で確実に抽出
-        const cityMatch = cleanedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
-        const baseCityName = cityMatch ? cityMatch[0] : cleanedAddr;
-        const superShortName = baseCityName.replace(/[市区町村]$/, ''); // 「町」などを完全に落とした名前（例：浜中）
+        // 先頭の市町村名部分を正規表現で抽出
+        const cityMatch = strippedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
+        const baseCityName = cityMatch ? cityMatch[0] : strippedAddr;
+        const superShortName = baseCityName.replace(/[市区町村]$/, ''); 
 
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
         if (prefMaster[superShortName]) return prefMaster[superShortName];
