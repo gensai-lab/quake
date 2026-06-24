@@ -299,20 +299,20 @@
         if (prefMaster[addrName]) return prefMaster[addrName];
 
         // 都道府県名が先頭についていたら消去
-        let cleanedAddr = addrName;
-        if (addrName.startsWith(prefName)) {
-            cleanedAddr = addrName.substring(prefName.length);
+        let cleanedAddr = addrName.trim();
+        if (cleanedAddr.startsWith(prefName)) {
+            cleanedAddr = cleanedAddr.substring(prefName.length);
         } else {
             const shortPref = prefName.replace(/[都府県]$/, '');
-            if (addrName.startsWith(shortPref)) {
-                cleanedAddr = addrName.substring(shortPref.length);
+            if (cleanedAddr.startsWith(shortPref)) {
+                cleanedAddr = cleanedAddr.substring(shortPref.length);
             }
         }
 
-        // 浜中町 -> 浜中、標茶町 -> 標茶 などの基本名を作成
-        const match = cleanedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
-        const baseCityName = match ? match[0] : cleanedAddr;
-        const superShortName = baseCityName.replace(/[市区町村]$/, ''); // 「町」などを完全に落とした名前
+        // 先頭の市町村名部分（「浜中町茶内」なら「浜中町」まで）を正規表現で確実に抽出
+        const cityMatch = cleanedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
+        const baseCityName = cityMatch ? cityMatch[0] : cleanedAddr;
+        const superShortName = baseCityName.replace(/[市区町村]$/, ''); // 「町」などを完全に落とした名前（例：浜中）
 
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
         if (prefMaster[superShortName]) return prefMaster[superShortName];
@@ -320,8 +320,8 @@
         // マスタ側のキーとの部分一致・前方一致をループで厳密にチェック
         for (const cityKey in prefMaster) {
             const cleanKey = cityKey.replace(/[市区町村]$/, '');
-            if (cleanedAddr.includes(cityKey) || 
-                cityKey.includes(cleanedAddr) ||
+            if (baseCityName.includes(cityKey) || 
+                cityKey.includes(baseCityName) ||
                 superShortName === cleanKey ||
                 cleanKey.startsWith(superShortName) ||
                 superShortName.startsWith(cleanKey)) {
