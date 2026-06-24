@@ -137,7 +137,7 @@
         zoomControl: false,
         attributionControl: false,
         minZoom: 2,
-        maxZoom: 11 // 全体の最大ズームを12から10に縮小
+        maxZoom: 10
     }).setView([36.5, 138.0], 5);
 
     // 地図の線の幅やスタイルを管理する設定オブジェクト
@@ -380,7 +380,6 @@
             if (t.length >= 2) {
                 const dateParts = t[0].split('/');
                 const timeParts = t[1].split(':');
-                // 「日」「時」「分ごろ」をspan.unit-textで囲み、個別で小さくできるように設定
                 document.getElementById('val-time').innerHTML = `${dateParts[2]}<span class="unit-text">日</span> ${timeParts[0]}<span class="unit-text">時</span>${timeParts[1]}<span class="unit-text">分ごろ</span>`;
             }
         }
@@ -388,7 +387,6 @@
         document.getElementById('val-hypocenter').innerText = hypocenterName;
         document.getElementById('val-magnitude').innerText = earth.hypocenter.magnitude === -1 ? "Ｍ不定" : `Ｍ${earth.hypocenter.magnitude}`;
         
-        // 深さの「約」をspan.unit-textで囲んで小さく設定
         if (earth.hypocenter.depth > 0) {
             document.getElementById('val-depth').innerHTML = `<span class="unit-text">約</span>${earth.hypocenter.depth}km`;
         } else {
@@ -408,7 +406,7 @@
         if (await checkEEW(earth.time)) document.getElementById('banner-eew').classList.remove('dimmed');
         else document.getElementById('banner-eew').classList.add('dimmed');
 
-        // 震源ピンの配置（もっとも背面にするため zIndexOffset: 50、paneを設定）
+        // 震源ピンの配置
         if (hasEpicenter) {
             L.marker([epicenterLat, epicenterLng], {
                 icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] }),
@@ -435,27 +433,20 @@
 
         // ズーム範囲計算用の座標リスト
         let zoomBoundsPoints = [];
-        const maxScaleValue = intensityMap[maxInt] ? intensityMap[maxInt].level : 0;
 
-        // 各細分区域に震度ピンをマッピング
+        // 各細分区域に震度ピンをマッピングし、最大震度エリアをズーム対象として集計
         for (const saibunName in saibunMaxScale) {
             const finalScale = saibunMaxScale[saibunName];
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
                 
-                // paneを指定し、一貫したzIndexOffsetを確実に適用
                 L.marker(center, {
                     icon: L.divIcon({ className: 'intensity-icon', html: `<img src="assets/icons/${intensityMap[finalScale].icon}" alt="震度${finalScale}">`, iconSize: [50, 50], iconAnchor: [25, 25] }),
                     pane: 'markerPane'
                 }).addTo(map).setZIndexOffset(intensityMap[finalScale].zIndex);
 
-                // ズーム条件判定
-                const currentLevel = intensityMap[finalScale].level;
-                if (maxScaleValue >= 3) {
-                    if (currentLevel >= 3) {
-                        zoomBoundsPoints.push(center);
-                    }
-                } else {
+                // 今回の地震の「最大震度（maxInt）」と同じ震度を観測した地域のみをズーム対象の計算に含める
+                if (finalScale === maxInt) {
                     zoomBoundsPoints.push(center);
                 }
             }
@@ -463,31 +454,26 @@
 
         // ズーム処理
         if (isEnchi) {
-            map.setView([36.5, 138.0], 5); // 遠地判定時は日本全体を見渡す初期位置にする
+            map.setView([36.5, 138.0], 5);
         } else if (hasEpicenter) {
+            // 最大震度を観測した地域がある場合
             if (zoomBoundsPoints.length > 0) {
-                let symmetricPoints = [];
-                zoomBoundsPoints.forEach(pt => {
-                    symmetricPoints.push([pt[0], pt[1]]); 
-                    let diffLat = pt[0] - epicenterLat;
-                    let diffLng = pt[1] - epicenterLng;
-                    symmetricPoints.push([epicenterLat - diffLat, epicenterLng - diffLng]);
-                });
+                // 最大震度エリアの座標リストに、必ず「震源地」も含めることで画面内に収まるように保証する
+                let targetPoints = [...zoomBoundsPoints];
+                targetPoints.push([epicenterLat, epicenterLng]);
 
-                symmetricPoints.push([epicenterLat, epicenterLng]);
-
-                map.fitBounds(L.latLngBounds(symmetricPoints), { 
+                map.fitBounds(L.latLngBounds(targetPoints), { 
                     paddingTopLeft: [190, 40],  
                     paddingBottomRight: [40, 40], 
-                    maxZoom: 8 // 自動フィット時の最大ズームを10から8に制限（より広域に表示）
+                    maxZoom: 8
                 });
             } else {
+                // 最大震度データがうまく取れなかった等のフォールバック
                 map.setView([epicenterLat, epicenterLng], 7);
             }
         }
     }
 
-    // キーボードの矢印上下キーによる拡大・縮小制御
     window.addEventListener('keydown', function(event) {
         if (event.key === 'ArrowUp') {
             map.zoomIn();
