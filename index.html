@@ -157,6 +157,7 @@
     };
 
     // 優先度（重なり順）マッピング: 震度7が最も高く（前面）、震度1が低く（背面側）なるように設定
+    // 数値でも文字列でも確実にマッチするように設定
     const intensityMap = {
         "10": { banner: "b1.svg", icon: "s1.svg", zIndex: 1000, level: 1 },
         "20": { banner: "b2.svg", icon: "s2.svg", zIndex: 2000, level: 2 },
@@ -393,13 +394,14 @@
             document.getElementById('val-depth').innerText = earth.hypocenter.depth === -1 ? "深さ不明" : "ごく浅い";
         }
 
-        const maxInt = earth.maxScale;
+        // maxScaleを文字列型に統一して判定
+        const maxInt = String(earth.maxScale);
         document.getElementById('max-intensity-banner').style.backgroundImage = `url('assets/banner/${intensityMap[maxInt] ? intensityMap[maxInt].banner : 'b0.svg'}')`;
 
         const domesticTsunami = earth.domesticTsunami || "None";
         document.getElementById('banner-tsunami').src = `assets/banner/${tsunamiMap[domesticTsunami] || 't2.svg'}`;
 
-        const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || maxInt === 0;
+        const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || earth.maxScale === 0;
         if (isEnchi) document.getElementById('banner-enchi').classList.remove('dimmed');
         else document.getElementById('banner-enchi').classList.add('dimmed');
 
@@ -436,7 +438,8 @@
 
         // 各細分区域に震度ピンをマッピングし、最大震度エリアをズーム対象として集計
         for (const saibunName in saibunMaxScale) {
-            const finalScale = saibunMaxScale[saibunName];
+            // 文字列型に明示的に変換してマッピングを確実に通す
+            const finalScale = String(saibunMaxScale[saibunName]);
             if (intensityMap[finalScale]) {
                 const center = getFeatureCenter(saibunFeatures[saibunName]);
                 
