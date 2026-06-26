@@ -176,11 +176,11 @@
     // 観測点名（addrName）から細分区域名へ強制的に紐付ける例外設定マスタ
     // 今後新しい例外地点が増えた場合は、ここに追加するだけで対応可能です。
     const specialCases = {
-        "浜中町茶内": "釧路地方中南部",
-        "標茶町塘路": "釧路地方中南部",
-        "別海町常盤": "根室地方中部",
-        "別海町西春別": "根室地方中部",
-        "別海町本別海": "根室地方中部"
+        "浜中町茶内": "根室地方南部",
+        "標茶町塘路": "根室地方南部",
+        "別海町常盤": "根室地方南部",
+        "別海町西春別": "根室地方南部",
+        "別海町本別海": "根室地方南部"
     };
 
     let saibunLayer, prefLayer, shionumaLayer;
@@ -431,10 +431,25 @@
         const saibunMaxScale = {};
         points.forEach(p => {
             const prefName = p.pref; 
-            const addrName = p.addr; 
+            const addrName = p.addr ? p.addr.trim() : ""; 
             const scale = p.scale;
 
-            const saibunName = convertToSaibunNameWithPref(prefName, addrName);
+            let saibunName = null;
+
+            // 【第1報（細分区域発表）対応】
+            // 送られてきた addrName が、すでに地図マスタ（saibunFeatures）に存在する細分区域名そのものだった場合
+            if (saibunFeatures[addrName]) {
+                saibunName = addrName;
+            } 
+            // 稀に「北海道根室地方南部」のように都道府県名が先頭にくっついている第1報パターンへの対応
+            else if (saibunFeatures[addrName.replace(prefName, "")]) {
+                saibunName = addrName.replace(prefName, "");
+            }
+            // 通常の市町村名が来ている場合は従来のコンバート処理を行う
+            else {
+                saibunName = convertToSaibunNameWithPref(prefName, addrName);
+            }
+
             if (saibunName) {
                 const targetKey = saibunName.trim();
                 if (saibunFeatures[targetKey]) {
