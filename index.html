@@ -63,6 +63,7 @@
             font-weight: 400;
             white-space: nowrap;
             letter-spacing: 0.03em; /* 文字間隔を3%に設定 */
+            font-feature-settings: "palt"; /* プロポーショナルメトリクスを有効化 */
         }
 
         /* 「日」「時」「分ごろ」「約」の文字サイズを小さくする用 */
@@ -399,7 +400,13 @@
         }
         
         document.getElementById('val-hypocenter').innerText = hypocenterName;
-        document.getElementById('val-magnitude').innerText = earth.hypocenter.magnitude === -1 ? "Ｍ不定" : `Ｍ${earth.hypocenter.magnitude}`;
+
+        // マグニチュードの数値を小数点第1位固定にフォーマット
+        if (earth.hypocenter.magnitude === -1) {
+            document.getElementById('val-magnitude').innerText = "Ｍ不定";
+        } else {
+            document.getElementById('val-magnitude').innerText = `Ｍ${Number(earth.hypocenter.magnitude).toFixed(1)}`;
+        }
         
         if (earth.hypocenter.depth > 0) {
             document.getElementById('val-depth').innerHTML = `<span class="unit-text">約</span>${earth.hypocenter.depth}km`;
