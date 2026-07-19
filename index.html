@@ -175,7 +175,6 @@
     };
 
     // 観測点名（addrName）から細分区域名へ強制的に紐付ける例外設定マスタ
-    // 今後新しい例外地点が増えた場合は、ここに追加するだけで対応可能です。
     const specialCases = {
         "浜中町茶内": "根室地方南部",
         "標茶町塘路": "根室地方南部",
@@ -291,12 +290,10 @@
 
         const cleanedAddr = addrName.trim();
 
-        // 1. まず例外マスタ（specialCases）に登録があるかチェック
         if (specialCases[cleanedAddr]) {
             return specialCases[cleanedAddr];
         }
 
-        // 2. 特殊ケースのハンドリング
         if (prefName === "東京都") {
             if (cleanedAddr.includes("大島町")) return "伊豆大島"; 
             if (cleanedAddr.includes("利島村") || cleanedAddr.includes("新島村")) return "新島"; 
@@ -313,10 +310,8 @@
         const prefMaster = cityToSaibunMap[prefName];
         if (!prefMaster) return null;
 
-        // 完全一致をチェック
         if (prefMaster[cleanedAddr]) return prefMaster[cleanedAddr];
 
-        // 都道府県名が先頭についていたら消去
         let strippedAddr = cleanedAddr;
         if (strippedAddr.startsWith(prefName)) {
             strippedAddr = strippedAddr.substring(prefName.length);
@@ -327,7 +322,6 @@
             }
         }
 
-        // 先頭の市町村名部分を正規表現で抽出
         const cityMatch = strippedAddr.match(/^.*?(?:筑西市|つくばみらい市|いちき串木野市|かすみがうら市|ひたちなか市|むつ市|さいたま市|国際空港|空港|［.*?］|市|町|村|区)/);
         const baseCityName = cityMatch ? cityMatch[0] : strippedAddr;
         const superShortName = baseCityName.replace(/[市区町村]$/, ''); 
@@ -335,7 +329,6 @@
         if (prefMaster[baseCityName]) return prefMaster[baseCityName];
         if (prefMaster[superShortName]) return prefMaster[superShortName];
 
-        // マスタ側のキーとの部分一致・前方一致をループで厳密にチェック
         for (const cityKey in prefMaster) {
             const cleanKey = cityKey.replace(/[市区町村]$/, '');
             if (baseCityName.includes(cityKey) || 
@@ -349,6 +342,62 @@
         
         console.warn(`[Match Failed] 細分区域の紐付けに失敗: ${prefName} ${addrName}`);
         return null;
+    }
+
+    /**
+     * 前後の情報（第1報の震度速報と第2報の震源情報など）を引き継ぎ・補完マージする関数
+     */
+    function mergeQuakeReports(targetEq, allData) {
+        // ディープコピーを作成して元のデータを汚染しないようにする
+        const merged = JSON.parse(JSON.stringify(targetEq));
+        
+        const targetTime = merged.earthquake.time;
+        if (!targetTime) return merged;
+
+        // 対象電文の発震時刻（分レベルまで: "YYYY/MM/DD HH:mm"）をキーにする
+        const targetMinKey = targetTime.substring(0, 16);
+
+        // 過去ログ全体から、同じ発生時刻（1分以内の誤差も考慮）の電文を探し出す
+        const relatedReports = allData.filter(item => {
+            if (!item.earthquake || !item.earthquake.time) return false;
+            const itemMinKey = item.earthquake.time.substring(0, 16);
+            
+            // 完全に同一のIDはスキップ
+            if (item.id === merged.id) return false;
+
+            // 発生時刻がほぼ一致する（分単位で一致）
+            const isSameTime = (itemMinKey === targetMinKey);
+            
+            // 震源名が判明している場合に、震源地が一致するか
+            const isSameHypocenter = (merged.earthquake.hypocenter.name && item.earthquake.hypocenter.name) 
+                ? (merged.earthquake.hypocenter.name === item.earthquake.hypocenter.name) 
+                : true;
+
+            return isSameTime && isSameHypocenter;
+        });
+
+        // 関連する過去・未来の電文から情報を集約する
+        relatedReports.forEach(report => {
+            // 1. 最大震度の情報が現在の電文になく、他方にある場合は引き継ぐ
+            if ((merged.earthquake.maxScale === 0 || !merged.earthquake.maxScale) && report.earthquake.maxScale > 0) {
+                merged.earthquake.maxScale = report.earthquake.maxScale;
+            }
+
+            // 2. 震度観測点データ（points）の引き継ぎ・結合（何報かに分かれて届いた時も網羅する）
+            if (report.points && report.points.length > 0) {
+                if (!merged.points) merged.points = [];
+                
+                report.points.forEach(p => {
+                    // 既に全く同じ観測点名（addr）が登録されていないか重複チェック
+                    const isExist = merged.points.some(mp => mp.addr === p.addr && mp.pref === p.pref);
+                    if (!isExist) {
+                        merged.points.push(p);
+                    }
+                });
+            }
+        });
+
+        return merged;
     }
 
     async function fetchQuakeData() {
@@ -366,7 +415,11 @@
                 const found = data.find(item => item.id === targetId);
                 if (found) eq = found;
             }
-            await renderEarthquake(eq);
+
+            // 【引き継ぎロジックの適用】第1報〜第3報をマージしたデータを作成
+            const finalizedEq = mergeQuakeReports(eq, data);
+
+            await renderEarthquake(finalizedEq);
         } catch (e) { console.error("API取得失敗:", e); }
     }
 
@@ -401,7 +454,6 @@
         
         document.getElementById('val-hypocenter').innerText = hypocenterName;
 
-        // マグニチュードの数値を小数点第1位固定にフォーマット
         if (earth.hypocenter.magnitude === -1) {
             document.getElementById('val-magnitude').innerText = "Ｍ不定";
         } else {
@@ -427,7 +479,6 @@
         if (await checkEEW(earth.time)) document.getElementById('banner-eew').classList.remove('dimmed');
         else document.getElementById('banner-eew').classList.add('dimmed');
 
-        // 震源ピンの配置
         if (hasEpicenter) {
             L.marker([epicenterLat, epicenterLng], {
                 icon: L.divIcon({ className: 'epicenter-icon', html: `<img src="assets/icons/shingen.png" alt="震源地">`, iconSize: [60, 60], iconAnchor: [30, 30] }),
@@ -443,16 +494,12 @@
 
             let saibunName = null;
 
-            // 【第1報（細分区域発表）対応】
-            // 送られてきた addrName が、すでに地図マスタ（saibunFeatures）に存在する細分区域名そのものだった場合
             if (saibunFeatures[addrName]) {
                 saibunName = addrName;
             } 
-            // 稀に「北海道根室地方南部」のように都道府県名が先頭にくっついている第1報パターンへの対応
             else if (saibunFeatures[addrName.replace(prefName, "")]) {
                 saibunName = addrName.replace(prefName, "");
             }
-            // 通常の市町村名が来ている場合は従来のコンバート処理を行う
             else {
                 saibunName = convertToSaibunNameWithPref(prefName, addrName);
             }
@@ -467,10 +514,8 @@
             }
         });
 
-        // ズーム範囲計算用の座標リスト
         let zoomBoundsPoints = [];
 
-        // 各細分区域に震度ピンをマッピングし、最大震度エリアをズーム対象として集計
         for (const saibunName in saibunMaxScale) {
             const finalScale = String(saibunMaxScale[saibunName]);
             if (intensityMap[finalScale]) {
@@ -481,14 +526,12 @@
                     pane: 'markerPane'
                 }).addTo(map).setZIndexOffset(intensityMap[finalScale].zIndex);
 
-                // 今回の地震の「最大震度（maxInt）」と同じ震度を観測した地域のみをズーム対象の計算に含める
                 if (finalScale === maxInt) {
                     zoomBoundsPoints.push(center);
                 }
             }
         }
 
-        // ズーム処理
         if (isEnchi) {
             map.setView([36.5, 138.0], 5);
         } else if (hasEpicenter) {
