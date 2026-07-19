@@ -348,27 +348,21 @@
      * 前後の情報（第1報の震度速報と第2報の震源情報など）を引き継ぎ・補完マージする関数
      */
     function mergeQuakeReports(targetEq, allData) {
-        // ディープコピーを作成して元のデータを汚染しないようにする
         const merged = JSON.parse(JSON.stringify(targetEq));
         
         const targetTime = merged.earthquake.time;
         if (!targetTime) return merged;
 
-        // 対象電文の発震時刻（分レベルまで: "YYYY/MM/DD HH:mm"）をキーにする
         const targetMinKey = targetTime.substring(0, 16);
 
-        // 過去ログ全体から、同じ発生時刻（1分以内の誤差も考慮）の電文を探し出す
         const relatedReports = allData.filter(item => {
             if (!item.earthquake || !item.earthquake.time) return false;
             const itemMinKey = item.earthquake.time.substring(0, 16);
             
-            // 完全に同一のIDはスキップ
             if (item.id === merged.id) return false;
 
-            // 発生時刻がほぼ一致する（分単位で一致）
             const isSameTime = (itemMinKey === targetMinKey);
             
-            // 震源名が判明している場合に、震源地が一致するか
             const isSameHypocenter = (merged.earthquake.hypocenter.name && item.earthquake.hypocenter.name) 
                 ? (merged.earthquake.hypocenter.name === item.earthquake.hypocenter.name) 
                 : true;
@@ -376,19 +370,15 @@
             return isSameTime && isSameHypocenter;
         });
 
-        // 関連する過去・未来の電文から情報を集約する
         relatedReports.forEach(report => {
-            // 1. 最大震度の情報が現在の電文になく、他方にある場合は引き継ぐ
             if ((merged.earthquake.maxScale === 0 || !merged.earthquake.maxScale) && report.earthquake.maxScale > 0) {
                 merged.earthquake.maxScale = report.earthquake.maxScale;
             }
 
-            // 2. 震度観測点データ（points）の引き継ぎ・結合（何報かに分かれて届いた時も網羅する）
             if (report.points && report.points.length > 0) {
                 if (!merged.points) merged.points = [];
                 
                 report.points.forEach(p => {
-                    // 既に全く同じ観測点名（addr）が登録されていないか重複チェック
                     const isExist = merged.points.some(mp => mp.addr === p.addr && mp.pref === p.pref);
                     if (!isExist) {
                         merged.points.push(p);
@@ -403,6 +393,7 @@
     async function fetchQuakeData() {
         const urlParams = new URLSearchParams(window.location.search);
         const targetId = urlParams.get('id');
+        const customZoom = urlParams.get('zoom'); // URL引数からzoomレベルを取得
         const apiUrl = "https://api.p2pquake.net/v2/history?codes=551&limit=30";
         
         try {
@@ -416,10 +407,10 @@
                 if (found) eq = found;
             }
 
-            // 【引き継ぎロジックの適用】第1報〜第3報をマージしたデータを作成
             const finalizedEq = mergeQuakeReports(eq, data);
 
-            await renderEarthquake(finalizedEq);
+            // 取得した電文データと一緒にカスタムズーム値を引き渡す
+            await renderEarthquake(finalizedEq, customZoom);
         } catch (e) { console.error("API取得失敗:", e); }
     }
 
@@ -434,7 +425,7 @@
         } catch (err) { return false; }
     }
 
-    async function renderEarthquake(eq) {
+    async function renderEarthquake(eq, customZoom) {
         const earth = eq.earthquake;
         const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
@@ -532,20 +523,33 @@
             }
         }
 
+        // ズーム＆位置決定処理
         if (isEnchi) {
-            map.setView([36.5, 138.0], 5);
+            map.setView([36.5, 138.0], customZoom ? Number(customZoom) : 5);
         } else if (hasEpicenter) {
-            if (zoomBoundsPoints.length > 0) {
-                let targetPoints = [...zoomBoundsPoints];
-                targetPoints.push([epicenterLat, epicenterLng]);
-
-                map.fitBounds(L.latLngBounds(targetPoints), { 
-                    paddingTopLeft: [190, 40],  
-                    paddingBottomRight: [40, 40], 
-                    maxZoom: 9
-                });
+            // customZoom パラメータが指定されている場合はそちらを優先適用する
+            if (customZoom && !isNaN(customZoom)) {
+                // 複数あれば最大震度観測地点の重心、無ければ震源地を中心にする
+                if (zoomBoundsPoints.length > 0) {
+                    let tempBounds = L.latLngBounds(zoomBoundsPoints);
+                    map.setView(tempBounds.getCenter(), Number(customZoom));
+                } else {
+                    map.setView([epicenterLat, epicenterLng], Number(customZoom));
+                }
             } else {
-                map.setView([epicenterLat, epicenterLng], 7);
+                // 自動計算ズーム処理
+                if (zoomBoundsPoints.length > 0) {
+                    let targetPoints = [...zoomBoundsPoints];
+                    targetPoints.push([epicenterLat, epicenterLng]);
+
+                    map.fitBounds(L.latLngBounds(targetPoints), { 
+                        paddingTopLeft: [190, 40],  
+                        paddingBottomRight: [40, 40], 
+                        maxZoom: 9
+                    });
+                } else {
+                    map.setView([epicenterLat, epicenterLng], 7);
+                }
             }
         }
     }
