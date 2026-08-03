@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ゆれたマップ（地震感知情報）</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        @font-face {
+            font-family: 'UDKakugo';
+            src: url('assets/fonts/FOT-UDKakugo_LargePr6-DB.otf') format('opentype');
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'UDKakugo', sans-serif;
+            background-color: #0d1b2a;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* 16:9 画面比率の固定コンテナ（index.html と共通） */
+        #display-container {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            transform-origin: top left;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #143264;
+        }
+
+        /* ===== ヘッダー ===== */
+        #header-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 189px;
+            background: linear-gradient(180deg, rgba(9,18,32,0.92) 0%, rgba(9,18,32,0.78) 70%, rgba(9,18,32,0) 100%);
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        #title-area {
+            position: absolute;
+            top: 22px;
+            left: 40px;
+            color: #ffffff;
+        }
+        #title-area .main-title {
+            font-size: 40px;
+            letter-spacing: 0.06em;
+            font-feature-settings: "palt";
+        }
+        #title-area .sub-title {
+            font-size: 20px;
+            color: #9fb3d1;
+            margin-top: 4px;
+            letter-spacing: 0.05em;
+        }
+
+        /* 総合信頼度バッジ */
+        #grade-badge {
+            position: absolute;
+            top: 18px;
+            left: 660px;
+            width: 150px;
+            height: 150px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            background: #3a4a5e;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+            transition: background-color 0.4s ease, box-shadow 0.4s ease;
+        }
+        #grade-badge .grade-letter {
+            font-size: 74px;
+            line-height: 1;
+            font-weight: 400;
+        }
+        #grade-badge .grade-caption {
+            font-size: 16px;
+            margin-top: 4px;
+            letter-spacing: 0.05em;
+        }
+        #grade-badge.pulse {
+            animation: badgePulse 1.6s ease-in-out infinite;
+        }
+        @keyframes badgePulse {
+            0%, 100% { box-shadow: 0 4px 18px rgba(0,0,0,0.4); }
+            50% { box-shadow: 0 4px 30px rgba(255,255,255,0.35); }
+        }
+
+        .info-text-base {
+            position: absolute;
+            color: #ffffff;
+            font-weight: 400;
+            white-space: nowrap;
+            letter-spacing: 0.03em;
+            font-feature-settings: "palt";
+        }
+        .info-label {
+            font-size: 18px;
+            color: #8fa5c4;
+            letter-spacing: 0.05em;
+        }
+        .unit-text {
+            font-size: 0.72em;
+            margin-left: 2px;
+            margin-right: 2px;
+        }
+
+        #val-time      { font-size: 42px; left: 850px; top: 28px; }
+        #lbl-time      { left: 850px; top: 4px; }
+        #val-count     { font-size: 30px; left: 850px; top: 96px; }
+        #lbl-count     { left: 850px; top: 74px; }
+
+        #val-status    { font-size: 26px; left: 1280px; top: 28px; color: #ffe27a; }
+        #lbl-status    { left: 1280px; top: 4px; }
+        #val-updated   { font-size: 20px; left: 1280px; top: 96px; color: #9fb3d1; }
+        #lbl-updated   { left: 1280px; top: 74px; }
+
+        /* ===== 凡例パネル ===== */
+        #legend-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(9,18,32,0.82);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 14px 18px;
+            color: #ffffff;
+            z-index: 1000;
+            font-size: 16px;
+        }
+        #legend-panel .legend-title {
+            font-size: 16px;
+            color: #9fb3d1;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+        .legend-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+        .legend-dot { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+        .legend-row span.label-name { color: #d7e2f2; }
+
+        /* ===== フッター注記 ===== */
+        #footer-note {
+            position: absolute;
+            bottom: 14px;
+            left: 40px;
+            color: #6f83a0;
+            font-size: 15px;
+            z-index: 1000;
+            letter-spacing: 0.02em;
+        }
+        #footer-note b { color: #9fb3d1; }
+
+        /* raw報告（直近の個別「揺れた！」）のパルス表示 */
+        .raw-pulse-wrap {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .raw-pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 0 0 rgba(255,255,255,0.7);
+            animation: rawPulse 1.7s ease-out infinite;
+        }
+        @keyframes rawPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.55); }
+            70%  { box-shadow: 0 0 0 16px rgba(255,255,255,0); }
+            100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="display-container">
+    <div id="map"></div>
+
+    <div id="header-container">
+        <div id="title-area">
+            <div class="main-title">ゆれたマップ</div>
+            <div class="sub-title">P2P地震情報 地震感知情報（ユーザー報告の集計）</div>
+        </div>
+
+        <div id="grade-badge">
+            <div class="grade-letter" id="grade-letter">-</div>
+            <div class="grade-caption" id="grade-caption">監視中</div>
+        </div>
+
+        <div id="lbl-time" class="info-text-base info-label">感知開始</div>
+        <div id="val-time" class="info-text-base">--<span class="unit-text">日</span> --<span class="unit-text">時</span>--<span class="unit-text">分ごろ</span></div>
+
+        <div id="lbl-count" class="info-text-base info-label">報告状況</div>
+        <div id="val-count" class="info-text-base">情報を取得中…</div>
+
+        <div id="lbl-status" class="info-text-base info-label">状態</div>
+        <div id="val-status" class="info-text-base">起動中</div>
+
+        <div id="lbl-updated" class="info-text-base info-label">最終更新</div>
+        <div id="val-updated" class="info-text-base">--:--:--</div>
+    </div>
+
+    <div id="legend-panel">
+        <div class="legend-title">信頼度の目安</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff3b30;"></div><span class="label-name">A（非常に高い）</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff8c1a;"></div><span class="label-name">B（高い）</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ffd400;"></div><span class="label-name">C（やや高い）</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#4fc3f7;"></div><span class="label-name">D（低い）</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#5c7fb2;"></div><span class="label-name">E（非常に低い）</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ffffff;opacity:.7;"></div><span class="label-name">白点：個別の「揺れた」報告</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#41526b;"></div><span class="label-name">灰点：監視ネットワーク（ピア）</span></div>
+    </div>
+
+    <div id="footer-note">
+        <b>ご注意：</b>本マップはP2P地震情報ユーザーから寄せられた「地震感知情報」を独自集計した非公式の参考情報です。公式発表は必ず気象庁等でご確認ください。
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    function resizeDisplay() {
+        const container = document.getElementById('display-container');
+        const scaleX = window.innerWidth / 1920;
+        const scaleY = window.innerHeight / 1080;
+        const scale = Math.min(scaleX, scaleY);
+        container.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', resizeDisplay);
+    resizeDisplay();
+
+    const map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false,
+        minZoom: 2,
+        maxZoom: 10
+    }).setView([36.5, 138.0], 5);
+
+    window.addEventListener('keydown', function (event) {
+        if (event.key === 'ArrowUp') { map.zoomIn(); event.preventDefault(); }
+        else if (event.key === 'ArrowDown') { map.zoomOut(); event.preventDefault(); }
+    });
+
+    // ===== 地域コードマスタ（epsp-area.csv）を jsDelivr 経由で取得 =====
+    // 形式: 地域コード,地域名,都道府県名,地方名,緯度,経度
+    const AREA_CSV_URL = 'https://cdn.jsdelivr.net/gh/p2pquake/epsp-specifications@master/epsp-area.csv';
+    let areaMaster = {};
+
+    async function loadAreaMaster() {
+        try {
+            const res = await fetch(AREA_CSV_URL);
+            const text = await res.text();
+            text.split(/\r?\n/).forEach(line => {
+                if (!line.trim()) return;
+                const cols = line.split(',');
+                if (cols.length < 6) return;
+                const code = cols[0].trim();
+                if (!/^\d+$/.test(code)) return; // ヘッダー行等をスキップ
+                const lat = parseFloat(cols[4]);
+                const lng = parseFloat(cols[5]);
+                if (isNaN(lat) || isNaN(lng)) return;
+                areaMaster[code] = {
+                    name: cols[1].trim(),
+                    pref: cols[2].trim(),
+                    region: cols[3].trim(),
+                    lat, lng
+                };
+            });
+        } catch (e) {
+            console.error('地域コードマスタの取得に失敗:', e);
+        }
+    }
+
+    // ===== 背景地図（都道府県境界・海域）=====
+    async function loadBaseMap() {
+        try {
+            L.geoJSON(await (await fetch('assets/map/pref.json')).json(), {
+                style: { color: '#4a5a70', weight: 1.4, fillColor: '#1c3350', fillOpacity: 1.0 }
+            }).addTo(map);
+        } catch (e) { console.error('都道府県境界の読込失敗:', e); }
+
+        try {
+            L.geoJSON(await (await fetch('assets/map/shionuma.json')).json(), {
+                style: { weight: 0, fillColor: '#143264', fillOpacity: 1.0 }
+            }).addTo(map);
+        } catch (e) { /* 任意アセットのため失敗しても無視 */ }
+    }
+
+    // ===== 信頼度の色・ラベル =====
+    const gradeColors = { A: '#ff3b30', B: '#ff8c1a', C: '#ffd400', D: '#4fc3f7', E: '#5c7fb2', F: '#8a8f98' };
+    const gradeCaptions = { A: '非常に高い', B: '高い', C: 'やや高い', D: '低い', E: '非常に低い', F: '判定なし' };
+
+    function gradeFromConfidence(c) {
+        if (c === undefined || c === null) return 'F';
+        if (c >= 0.8) return 'A';
+        if (c >= 0.6) return 'B';
+        if (c >= 0.4) return 'C';
+        if (c >= 0.2) return 'D';
+        if (c >= 0) return 'E';
+        return 'F';
+    }
+
+    function parseApiTime(s) {
+        if (!s) return null;
+        const [d, t] = s.trim().split(' ');
+        if (!d || !t) return null;
+        const [y, m, day] = d.split('/');
+        return new Date(`${y}-${m}-${day}T${t}`);
+    }
+
+    // ===== ベースライン（ピア分布 555）=====
+    let baseLayer = L.layerGroup().addTo(map);
+    let baseRendered = false;
+
+    function renderBaseline(peerRecord) {
+        if (baseRendered || !peerRecord || !peerRecord.areas) return;
+        peerRecord.areas.forEach(a => {
+            const meta = areaMaster[String(a.id)];
+            if (!meta) return;
+            L.circleMarker([meta.lat, meta.lng], {
+                radius: 2.5,
+                color: 'none',
+                fillColor: '#41526b',
+                fillOpacity: 0.55,
+                pane: 'overlayPane'
+            }).addTo(baseLayer).bindTooltip(`${meta.name}（監視ピア ${a.peer}）`, { direction: 'top' });
+        });
+        baseRendered = true;
+    }
+
+    // ===== 個別の生報告（561）を一定時間だけパルス表示 =====
+    const RAW_TTL_MS = 3 * 60 * 1000; // 直近3分だけ表示
+    let rawLayer = L.layerGroup().addTo(map);
+    let rawMarkers = {}; // id -> {marker, expireAt}
+
+    function renderRaw(rawList) {
+        const now = Date.now();
+        rawList.forEach(item => {
+            if (rawMarkers[item.id]) return;
+            const t = parseApiTime(item.time);
+            if (!t) return;
+            const age = now - t.getTime();
+            if (age > RAW_TTL_MS || age < -60000) return; // 古い/未来すぎる情報は無視
+
+            const meta = areaMaster[String(item.area)];
+            if (!meta) return;
+
+            const icon = L.divIcon({
+                className: 'raw-pulse-wrap',
+                html: '<div class="raw-pulse-dot"></div>',
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+            const marker = L.marker([meta.lat, meta.lng], { icon, interactive: false }).addTo(rawLayer);
+            rawMarkers[item.id] = { marker, expireAt: t.getTime() + RAW_TTL_MS };
+        });
+
+        // 期限切れマーカーの掃除
+        Object.keys(rawMarkers).forEach(id => {
+            if (rawMarkers[id].expireAt < now) {
+                rawLayer.removeLayer(rawMarkers[id].marker);
+                delete rawMarkers[id];
+            }
+        });
+    }
+
+    // ===== 集計結果（9611）を反映 =====
+    let evalLayer = L.layerGroup().addTo(map);
+    let currentEventId = null;
+    const EVENT_ACTIVE_MS = 20 * 60 * 1000; // 20分経過したイベントは「監視中」に戻す
+
+    function setStandbyHeader() {
+        document.getElementById('grade-letter').textContent = '-';
+        document.getElementById('grade-caption').textContent = '監視中';
+        document.getElementById('grade-badge').style.background = '#3a4a5e';
+        document.getElementById('grade-badge').classList.remove('pulse');
+        document.getElementById('val-time').innerHTML = '--<span class="unit-text">日</span> --<span class="unit-text">時</span>--<span class="unit-text">分ごろ</span>';
+        document.getElementById('val-count').textContent = '揺れの感知情報はありません';
+        document.getElementById('val-status').textContent = '監視中';
+        document.getElementById('val-status').style.color = '#9fb3d1';
+    }
+
+    function renderEvaluation(latestEval) {
+        if (!latestEval) { setStandbyHeader(); return; }
+
+        const startedAt = parseApiTime(latestEval.started_at || latestEval.time);
+        const age = startedAt ? (Date.now() - startedAt.getTime()) : Infinity;
+
+        if (age > EVENT_ACTIVE_MS) {
+            setStandbyHeader();
+            return;
+        }
+
+        // ヘッダー更新
+        if (startedAt) {
+            document.getElementById('val-time').innerHTML =
+                `${startedAt.getDate()}<span class="unit-text">日</span> ${String(startedAt.getHours()).padStart(2, '0')}<span class="unit-text">時</span>${String(startedAt.getMinutes()).padStart(2, '0')}<span class="unit-text">分ごろ</span>`;
+        }
+
+        const areaCount = latestEval.area_confidences ? Object.keys(latestEval.area_confidences).length : 0;
+        document.getElementById('val-count').textContent =
+            `報告数 ${latestEval.count ?? '-'}件 / 対象 ${areaCount}地域`;
+
+        const overallGrade = gradeFromConfidence(latestEval.confidence);
+        const badge = document.getElementById('grade-badge');
+        document.getElementById('grade-letter').textContent = overallGrade;
+        document.getElementById('grade-caption').textContent = gradeCaptions[overallGrade];
+        badge.style.background = gradeColors[overallGrade];
+        badge.classList.toggle('pulse', overallGrade === 'A' || overallGrade === 'B');
+
+        document.getElementById('val-status').textContent = '感知情報あり';
+        document.getElementById('val-status').style.color = gradeColors[overallGrade];
+
+        // イベントが変わった/更新された時だけ地図上のマーカーを再描画
+        const versionKey = latestEval.id + '_' + (latestEval.updated_at || latestEval.time);
+        if (versionKey === currentEventId) return;
+        currentEventId = versionKey;
+
+        evalLayer.clearLayers();
+        const bounds = [];
+
+        if (latestEval.area_confidences) {
+            Object.entries(latestEval.area_confidences).forEach(([areaCode, info]) => {
+                const meta = areaMaster[areaCode];
+                if (!meta) return;
+                const display = info.display || gradeFromConfidence(info.confidence);
+                const color = gradeColors[display] || gradeColors.F;
+                const radius = 8 + Math.min(34, Math.sqrt(info.count || 1) * 6);
+
+                const marker = L.circleMarker([meta.lat, meta.lng], {
+                    radius,
+                    color: '#0d1b2a',
+                    weight: 1.5,
+                    fillColor: color,
+                    fillOpacity: 0.8
+                }).addTo(evalLayer);
+
+                marker.bindTooltip(
+                    `${meta.name}（${meta.pref}）<br>信頼度: ${display}（${((info.confidence || 0) * 100).toFixed(1)}%）<br>報告数: ${info.count}`,
+                    { direction: 'top', sticky: true }
+                );
+
+                if (display === 'A' || display === 'B' || display === 'C') {
+                    bounds.push([meta.lat, meta.lng]);
+                }
+            });
+        }
+
+        if (bounds.length > 0) {
+            map.fitBounds(L.latLngBounds(bounds), { padding: [120, 60], maxZoom: 8 });
+        }
+    }
+
+    // ===== ポーリング =====
+    const API_URL = 'https://api.p2pquake.net/v2/history?codes=555&codes=561&codes=9611&limit=100';
+
+    async function pollKanchi() {
+        try {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            if (!Array.isArray(data)) return;
+
+            const peers = data.find(d => d.code === 555);
+            const raws = data.filter(d => d.code === 561);
+            const evals = data
+                .filter(d => d.code === 9611)
+                .sort((a, b) => (parseApiTime(b.time) || 0) - (parseApiTime(a.time) || 0));
+
+            renderBaseline(peers);
+            renderRaw(raws);
+            renderEvaluation(evals[0]);
+
+            const now = new Date();
+            document.getElementById('val-updated').textContent =
+                `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        } catch (e) {
+            console.error('感知情報の取得に失敗:', e);
+        }
+    }
+
+    async function init() {
+        setStandbyHeader();
+        await loadAreaMaster();
+        await loadBaseMap();
+        await pollKanchi();
+        setInterval(pollKanchi, 10000); // 10秒ごとに更新
+    }
+
+    init();
+</script>
+</body>
+</html>
