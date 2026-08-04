@@ -22,7 +22,6 @@
             user-select: none;
         }
 
-        /* 16:9 画面比率の固定コンテナ（index.html と共通） */
         #display-container {
             position: relative;
             width: 1920px;
@@ -36,7 +35,7 @@
             background: #143264;
         }
 
-        /* ===== ヘッダー ===== */
+        /* ===== ヘッダー（装飾のみ／クリック不可） ===== */
         #header-container {
             position: absolute;
             top: 0;
@@ -54,19 +53,9 @@
             left: 40px;
             color: #ffffff;
         }
-        #title-area .main-title {
-            font-size: 40px;
-            letter-spacing: 0.06em;
-            font-feature-settings: "palt";
-        }
-        #title-area .sub-title {
-            font-size: 20px;
-            color: #9fb3d1;
-            margin-top: 4px;
-            letter-spacing: 0.05em;
-        }
+        #title-area .main-title { font-size: 40px; letter-spacing: 0.06em; font-feature-settings: "palt"; }
+        #title-area .sub-title { font-size: 20px; color: #9fb3d1; margin-top: 4px; letter-spacing: 0.05em; }
 
-        /* 総合信頼度バッジ */
         #grade-badge {
             position: absolute;
             top: 18px;
@@ -83,19 +72,9 @@
             box-shadow: 0 4px 18px rgba(0,0,0,0.4);
             transition: background-color 0.4s ease, box-shadow 0.4s ease;
         }
-        #grade-badge .grade-letter {
-            font-size: 74px;
-            line-height: 1;
-            font-weight: 400;
-        }
-        #grade-badge .grade-caption {
-            font-size: 16px;
-            margin-top: 4px;
-            letter-spacing: 0.05em;
-        }
-        #grade-badge.pulse {
-            animation: badgePulse 1.6s ease-in-out infinite;
-        }
+        #grade-badge .grade-letter { font-size: 74px; line-height: 1; font-weight: 400; }
+        #grade-badge .grade-caption { font-size: 16px; margin-top: 4px; letter-spacing: 0.05em; }
+        #grade-badge.pulse { animation: badgePulse 1.6s ease-in-out infinite; }
         @keyframes badgePulse {
             0%, 100% { box-shadow: 0 4px 18px rgba(0,0,0,0.4); }
             50% { box-shadow: 0 4px 30px rgba(255,255,255,0.35); }
@@ -109,26 +88,128 @@
             letter-spacing: 0.03em;
             font-feature-settings: "palt";
         }
-        .info-label {
-            font-size: 18px;
-            color: #8fa5c4;
-            letter-spacing: 0.05em;
-        }
-        .unit-text {
-            font-size: 0.72em;
-            margin-left: 2px;
-            margin-right: 2px;
-        }
+        .info-label { font-size: 18px; color: #8fa5c4; letter-spacing: 0.05em; }
+        .unit-text { font-size: 0.72em; margin-left: 2px; margin-right: 2px; }
 
-        #val-time      { font-size: 42px; left: 850px; top: 28px; }
+        #val-time      { font-size: 40px; left: 850px; top: 28px; }
         #lbl-time      { left: 850px; top: 4px; }
-        #val-count     { font-size: 30px; left: 850px; top: 96px; }
+        #val-count     { font-size: 28px; left: 850px; top: 96px; }
         #lbl-count     { left: 850px; top: 74px; }
 
-        #val-status    { font-size: 26px; left: 1280px; top: 28px; color: #ffe27a; }
+        #val-status    { font-size: 24px; left: 1280px; top: 28px; color: #ffe27a; }
         #lbl-status    { left: 1280px; top: 4px; }
         #val-updated   { font-size: 20px; left: 1280px; top: 96px; color: #9fb3d1; }
         #lbl-updated   { left: 1280px; top: 74px; }
+
+        /* ===== モード切替 ===== */
+        #mode-switch {
+            position: absolute;
+            top: 145px;
+            left: 40px;
+            z-index: 1001;
+            display: flex;
+            gap: 10px;
+        }
+        .mode-btn {
+            padding: 8px 18px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.28);
+            background: rgba(255,255,255,0.07);
+            color: #cfe0f5;
+            font-size: 15px;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+        }
+        .mode-btn.active { background: #3d6fb4; color: #ffffff; border-color: #3d6fb4; }
+        .mode-btn:hover { background: rgba(255,255,255,0.16); }
+        .mode-btn.active:hover { background: #4a7cc4; }
+
+        /* ===== 過去再生パネル ===== */
+        #playback-panel {
+            display: none;
+            position: absolute;
+            top: 210px;
+            left: 20px;
+            width: 360px;
+            max-height: 840px;
+            overflow-y: auto;
+            background: rgba(9,18,32,0.88);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 14px;
+            padding: 18px;
+            color: #ffffff;
+            z-index: 1001;
+        }
+        #playback-panel .panel-title {
+            font-size: 18px;
+            color: #cfe0f5;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+        #playback-status {
+            font-size: 14px;
+            color: #9fb3d1;
+            margin: 8px 0 12px;
+            line-height: 1.6;
+        }
+        .quake-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 6px;
+            background: rgba(255,255,255,0.04);
+        }
+        .quake-item:hover { background: rgba(255,255,255,0.12); }
+        .quake-item.selected { background: rgba(61,111,180,0.35); border: 1px solid #3d6fb4; }
+        .ql-scale-badge {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; background: #41526b; color: #fff; flex-shrink: 0;
+        }
+        .ql-info { font-size: 14px; line-height: 1.5; }
+        .ql-info .ql-time { color: #cfe0f5; }
+        .ql-info .ql-place { color: #9fb3d1; font-size: 13px; }
+
+        #back-to-list {
+            font-size: 14px;
+            color: #8fb4ff;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        #selected-quake-summary {
+            font-size: 15px;
+            line-height: 1.7;
+            margin-bottom: 10px;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+
+        #playback-controls { display: none; margin-top: 8px; }
+        #playback-controls-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #play-btn {
+            width: 42px; height: 42px; border-radius: 50%;
+            border: none; background: #3d6fb4; color: #fff;
+            font-size: 18px; cursor: pointer; flex-shrink: 0;
+        }
+        #play-btn:hover { background: #4a7cc4; }
+        #playback-slider { flex: 1; }
+        #playback-time-label {
+            font-family: monospace;
+            font-size: 15px;
+            color: #cfe0f5;
+            min-width: 56px;
+            text-align: right;
+        }
 
         /* ===== 凡例パネル ===== */
         #legend-panel {
@@ -143,17 +224,11 @@
             z-index: 1000;
             font-size: 16px;
         }
-        #legend-panel .legend-title {
-            font-size: 16px;
-            color: #9fb3d1;
-            margin-bottom: 8px;
-            letter-spacing: 0.05em;
-        }
+        #legend-panel .legend-title { font-size: 16px; color: #9fb3d1; margin-bottom: 8px; letter-spacing: 0.05em; }
         .legend-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
         .legend-dot { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
         .legend-row span.label-name { color: #d7e2f2; }
 
-        /* ===== フッター注記 ===== */
         #footer-note {
             position: absolute;
             bottom: 14px;
@@ -165,20 +240,10 @@
         }
         #footer-note b { color: #9fb3d1; }
 
-        /* raw報告（直近の個別「揺れた！」）のパルス表示 */
-        .raw-pulse-wrap {
-            width: 26px;
-            height: 26px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        .raw-pulse-wrap { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
         .raw-pulse-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #ffffff;
-            box-shadow: 0 0 0 rgba(255,255,255,0.7);
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #ffffff; box-shadow: 0 0 0 rgba(255,255,255,0.7);
             animation: rawPulse 1.7s ease-out infinite;
         }
         @keyframes rawPulse {
@@ -215,6 +280,35 @@
 
         <div id="lbl-updated" class="info-text-base info-label">最終更新</div>
         <div id="val-updated" class="info-text-base">--:--:--</div>
+    </div>
+
+    <div id="mode-switch">
+        <button id="mode-live" class="mode-btn active">ライブ</button>
+        <button id="mode-playback" class="mode-btn">過去再生</button>
+    </div>
+
+    <div id="playback-panel">
+        <div class="panel-title">過去の地震を選択</div>
+        <div id="playback-status">地震一覧を取得中…</div>
+
+        <div id="quake-list"></div>
+
+        <div id="quake-detail" style="display:none;">
+            <span id="back-to-list">← 一覧に戻る</span>
+            <div id="selected-quake-summary"></div>
+            <div id="search-status" style="font-size:14px;color:#9fb3d1;"></div>
+
+            <div id="playback-controls">
+                <div id="playback-controls-row">
+                    <button id="play-btn">▶</button>
+                    <input type="range" id="playback-slider" min="-30" max="90" step="1" value="-30">
+                    <div id="playback-time-label">-0:30</div>
+                </div>
+                <div style="font-size:13px;color:#6f83a0;margin-top:8px;">
+                    地震発生を 0:00 として、-0:30〜+1:30 の感知情報を再生します（自動再生は約5倍速）。
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="legend-panel">
@@ -257,8 +351,9 @@
         else if (event.key === 'ArrowDown') { map.zoomOut(); event.preventDefault(); }
     });
 
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
     // ===== 地域コードマスタ（epsp-area.csv）を jsDelivr 経由で取得 =====
-    // 形式: 地域コード,地域名,都道府県名,地方名,緯度,経度
     const AREA_CSV_URL = 'https://cdn.jsdelivr.net/gh/p2pquake/epsp-specifications@master/epsp-area.csv';
     let areaMaster = {};
 
@@ -271,40 +366,32 @@
                 const cols = line.split(',');
                 if (cols.length < 6) return;
                 const code = cols[0].trim();
-                if (!/^\d+$/.test(code)) return; // ヘッダー行等をスキップ
+                if (!/^\d+$/.test(code)) return;
                 const lat = parseFloat(cols[4]);
                 const lng = parseFloat(cols[5]);
                 if (isNaN(lat) || isNaN(lng)) return;
-                areaMaster[code] = {
-                    name: cols[1].trim(),
-                    pref: cols[2].trim(),
-                    region: cols[3].trim(),
-                    lat, lng
-                };
+                areaMaster[code] = { name: cols[1].trim(), pref: cols[2].trim(), region: cols[3].trim(), lat, lng };
             });
-        } catch (e) {
-            console.error('地域コードマスタの取得に失敗:', e);
-        }
+        } catch (e) { console.error('地域コードマスタの取得に失敗:', e); }
     }
 
-    // ===== 背景地図（都道府県境界・海域）=====
     async function loadBaseMap() {
         try {
             L.geoJSON(await (await fetch('assets/map/pref.json')).json(), {
                 style: { color: '#4a5a70', weight: 1.4, fillColor: '#1c3350', fillOpacity: 1.0 }
             }).addTo(map);
         } catch (e) { console.error('都道府県境界の読込失敗:', e); }
-
         try {
             L.geoJSON(await (await fetch('assets/map/shionuma.json')).json(), {
                 style: { weight: 0, fillColor: '#143264', fillOpacity: 1.0 }
             }).addTo(map);
-        } catch (e) { /* 任意アセットのため失敗しても無視 */ }
+        } catch (e) { /* 任意アセット */ }
     }
 
     // ===== 信頼度の色・ラベル =====
     const gradeColors = { A: '#ff3b30', B: '#ff8c1a', C: '#ffd400', D: '#4fc3f7', E: '#5c7fb2', F: '#8a8f98' };
     const gradeCaptions = { A: '非常に高い', B: '高い', C: 'やや高い', D: '低い', E: '非常に低い', F: '判定なし' };
+    const scaleLabelMap = { '-1': '不明', '10': '1', '20': '2', '30': '3', '40': '4', '45': '5弱', '50': '5強', '55': '6弱', '60': '6強', '70': '7' };
 
     function gradeFromConfidence(c) {
         if (c === undefined || c === null) return 'F';
@@ -324,7 +411,50 @@
         return new Date(`${y}-${m}-${day}T${t}`);
     }
 
-    // ===== ベースライン（ピア分布 555）=====
+    function formatOffset(sec) {
+        const sign = sec < 0 ? '-' : '+';
+        const abs = Math.round(Math.abs(sec));
+        const mm = Math.floor(abs / 60);
+        const ss = String(abs % 60).padStart(2, '0');
+        return `${sign}${mm}:${ss}`;
+    }
+
+    // 共通：ヘッダー表示更新
+    function setHeader({ grade, caption, timeHtml, countText, statusText, statusColor, pulse }) {
+        document.getElementById('grade-letter').textContent = grade;
+        document.getElementById('grade-caption').textContent = caption;
+        document.getElementById('grade-badge').style.background = gradeColors[grade] || '#3a4a5e';
+        document.getElementById('grade-badge').classList.toggle('pulse', !!pulse);
+        if (timeHtml !== undefined) document.getElementById('val-time').innerHTML = timeHtml;
+        if (countText !== undefined) document.getElementById('val-count').textContent = countText;
+        if (statusText !== undefined) document.getElementById('val-status').textContent = statusText;
+        if (statusColor !== undefined) document.getElementById('val-status').style.color = statusColor;
+    }
+
+    // 共通：信頼度エリアの円マーカー描画
+    function drawConfidenceAreas(layerGroup, areaConfidences) {
+        const bounds = [];
+        Object.entries(areaConfidences || {}).forEach(([areaCode, info]) => {
+            const meta = areaMaster[areaCode];
+            if (!meta) return;
+            const display = info.display || gradeFromConfidence(info.confidence);
+            const color = gradeColors[display] || gradeColors.F;
+            const radius = 8 + Math.min(34, Math.sqrt(info.count || 1) * 6);
+            const marker = L.circleMarker([meta.lat, meta.lng], {
+                radius, color: '#0d1b2a', weight: 1.5, fillColor: color, fillOpacity: 0.8
+            }).addTo(layerGroup);
+            marker.bindTooltip(
+                `${meta.name}（${meta.pref}）<br>信頼度: ${display}（${((info.confidence || 0) * 100).toFixed(1)}%）<br>報告数: ${info.count}`,
+                { direction: 'top', sticky: true }
+            );
+            if (display === 'A' || display === 'B' || display === 'C') bounds.push([meta.lat, meta.lng]);
+        });
+        return bounds;
+    }
+
+    /* =========================================================
+       ライブモード
+    ========================================================= */
     let baseLayer = L.layerGroup().addTo(map);
     let baseRendered = false;
 
@@ -334,20 +464,15 @@
             const meta = areaMaster[String(a.id)];
             if (!meta) return;
             L.circleMarker([meta.lat, meta.lng], {
-                radius: 2.5,
-                color: 'none',
-                fillColor: '#41526b',
-                fillOpacity: 0.55,
-                pane: 'overlayPane'
+                radius: 2.5, color: 'none', fillColor: '#41526b', fillOpacity: 0.55
             }).addTo(baseLayer).bindTooltip(`${meta.name}（監視ピア ${a.peer}）`, { direction: 'top' });
         });
         baseRendered = true;
     }
 
-    // ===== 個別の生報告（561）を一定時間だけパルス表示 =====
-    const RAW_TTL_MS = 3 * 60 * 1000; // 直近3分だけ表示
+    const RAW_TTL_MS = 3 * 60 * 1000;
     let rawLayer = L.layerGroup().addTo(map);
-    let rawMarkers = {}; // id -> {marker, expireAt}
+    let rawMarkers = {};
 
     function renderRaw(rawList) {
         const now = Date.now();
@@ -356,150 +481,344 @@
             const t = parseApiTime(item.time);
             if (!t) return;
             const age = now - t.getTime();
-            if (age > RAW_TTL_MS || age < -60000) return; // 古い/未来すぎる情報は無視
-
+            if (age > RAW_TTL_MS || age < -60000) return;
             const meta = areaMaster[String(item.area)];
             if (!meta) return;
-
-            const icon = L.divIcon({
-                className: 'raw-pulse-wrap',
-                html: '<div class="raw-pulse-dot"></div>',
-                iconSize: [26, 26],
-                iconAnchor: [13, 13]
-            });
+            const icon = L.divIcon({ className: 'raw-pulse-wrap', html: '<div class="raw-pulse-dot"></div>', iconSize: [26, 26], iconAnchor: [13, 13] });
             const marker = L.marker([meta.lat, meta.lng], { icon, interactive: false }).addTo(rawLayer);
             rawMarkers[item.id] = { marker, expireAt: t.getTime() + RAW_TTL_MS };
         });
-
-        // 期限切れマーカーの掃除
         Object.keys(rawMarkers).forEach(id => {
-            if (rawMarkers[id].expireAt < now) {
-                rawLayer.removeLayer(rawMarkers[id].marker);
-                delete rawMarkers[id];
-            }
+            if (rawMarkers[id].expireAt < now) { rawLayer.removeLayer(rawMarkers[id].marker); delete rawMarkers[id]; }
         });
     }
 
-    // ===== 集計結果（9611）を反映 =====
     let evalLayer = L.layerGroup().addTo(map);
     let currentEventId = null;
-    const EVENT_ACTIVE_MS = 20 * 60 * 1000; // 20分経過したイベントは「監視中」に戻す
+    const EVENT_ACTIVE_MS = 20 * 60 * 1000;
 
     function setStandbyHeader() {
-        document.getElementById('grade-letter').textContent = '-';
-        document.getElementById('grade-caption').textContent = '監視中';
-        document.getElementById('grade-badge').style.background = '#3a4a5e';
-        document.getElementById('grade-badge').classList.remove('pulse');
-        document.getElementById('val-time').innerHTML = '--<span class="unit-text">日</span> --<span class="unit-text">時</span>--<span class="unit-text">分ごろ</span>';
-        document.getElementById('val-count').textContent = '揺れの感知情報はありません';
-        document.getElementById('val-status').textContent = '監視中';
-        document.getElementById('val-status').style.color = '#9fb3d1';
+        setHeader({
+            grade: '-', caption: '監視中',
+            timeHtml: '--<span class="unit-text">日</span> --<span class="unit-text">時</span>--<span class="unit-text">分ごろ</span>',
+            countText: '揺れの感知情報はありません',
+            statusText: '監視中', statusColor: '#9fb3d1', pulse: false
+        });
     }
 
     function renderEvaluation(latestEval) {
         if (!latestEval) { setStandbyHeader(); return; }
-
         const startedAt = parseApiTime(latestEval.started_at || latestEval.time);
         const age = startedAt ? (Date.now() - startedAt.getTime()) : Infinity;
-
-        if (age > EVENT_ACTIVE_MS) {
-            setStandbyHeader();
-            return;
-        }
-
-        // ヘッダー更新
-        if (startedAt) {
-            document.getElementById('val-time').innerHTML =
-                `${startedAt.getDate()}<span class="unit-text">日</span> ${String(startedAt.getHours()).padStart(2, '0')}<span class="unit-text">時</span>${String(startedAt.getMinutes()).padStart(2, '0')}<span class="unit-text">分ごろ</span>`;
-        }
+        if (age > EVENT_ACTIVE_MS) { setStandbyHeader(); return; }
 
         const areaCount = latestEval.area_confidences ? Object.keys(latestEval.area_confidences).length : 0;
-        document.getElementById('val-count').textContent =
-            `報告数 ${latestEval.count ?? '-'}件 / 対象 ${areaCount}地域`;
-
         const overallGrade = gradeFromConfidence(latestEval.confidence);
-        const badge = document.getElementById('grade-badge');
-        document.getElementById('grade-letter').textContent = overallGrade;
-        document.getElementById('grade-caption').textContent = gradeCaptions[overallGrade];
-        badge.style.background = gradeColors[overallGrade];
-        badge.classList.toggle('pulse', overallGrade === 'A' || overallGrade === 'B');
+        const timeHtml = startedAt
+            ? `${startedAt.getDate()}<span class="unit-text">日</span> ${String(startedAt.getHours()).padStart(2, '0')}<span class="unit-text">時</span>${String(startedAt.getMinutes()).padStart(2, '0')}<span class="unit-text">分ごろ</span>`
+            : undefined;
 
-        document.getElementById('val-status').textContent = '感知情報あり';
-        document.getElementById('val-status').style.color = gradeColors[overallGrade];
+        setHeader({
+            grade: overallGrade, caption: gradeCaptions[overallGrade],
+            timeHtml,
+            countText: `報告数 ${latestEval.count ?? '-'}件 / 対象 ${areaCount}地域`,
+            statusText: '感知情報あり', statusColor: gradeColors[overallGrade],
+            pulse: overallGrade === 'A' || overallGrade === 'B'
+        });
 
-        // イベントが変わった/更新された時だけ地図上のマーカーを再描画
         const versionKey = latestEval.id + '_' + (latestEval.updated_at || latestEval.time);
         if (versionKey === currentEventId) return;
         currentEventId = versionKey;
 
         evalLayer.clearLayers();
-        const bounds = [];
-
-        if (latestEval.area_confidences) {
-            Object.entries(latestEval.area_confidences).forEach(([areaCode, info]) => {
-                const meta = areaMaster[areaCode];
-                if (!meta) return;
-                const display = info.display || gradeFromConfidence(info.confidence);
-                const color = gradeColors[display] || gradeColors.F;
-                const radius = 8 + Math.min(34, Math.sqrt(info.count || 1) * 6);
-
-                const marker = L.circleMarker([meta.lat, meta.lng], {
-                    radius,
-                    color: '#0d1b2a',
-                    weight: 1.5,
-                    fillColor: color,
-                    fillOpacity: 0.8
-                }).addTo(evalLayer);
-
-                marker.bindTooltip(
-                    `${meta.name}（${meta.pref}）<br>信頼度: ${display}（${((info.confidence || 0) * 100).toFixed(1)}%）<br>報告数: ${info.count}`,
-                    { direction: 'top', sticky: true }
-                );
-
-                if (display === 'A' || display === 'B' || display === 'C') {
-                    bounds.push([meta.lat, meta.lng]);
-                }
-            });
-        }
-
-        if (bounds.length > 0) {
-            map.fitBounds(L.latLngBounds(bounds), { padding: [120, 60], maxZoom: 8 });
-        }
+        const bounds = drawConfidenceAreas(evalLayer, latestEval.area_confidences);
+        if (bounds.length > 0) map.fitBounds(L.latLngBounds(bounds), { padding: [120, 60], maxZoom: 8 });
     }
 
-    // ===== ポーリング =====
-    const API_URL = 'https://api.p2pquake.net/v2/history?codes=555&codes=561&codes=9611&limit=100';
+    const LIVE_API_URL = 'https://api.p2pquake.net/v2/history?codes=555&codes=561&codes=9611&limit=100';
+    let liveTimer = null;
 
     async function pollKanchi() {
         try {
-            const res = await fetch(API_URL);
+            const res = await fetch(LIVE_API_URL);
             const data = await res.json();
             if (!Array.isArray(data)) return;
-
             const peers = data.find(d => d.code === 555);
             const raws = data.filter(d => d.code === 561);
-            const evals = data
-                .filter(d => d.code === 9611)
-                .sort((a, b) => (parseApiTime(b.time) || 0) - (parseApiTime(a.time) || 0));
-
+            const evals = data.filter(d => d.code === 9611).sort((a, b) => (parseApiTime(b.time) || 0) - (parseApiTime(a.time) || 0));
             renderBaseline(peers);
             renderRaw(raws);
             renderEvaluation(evals[0]);
-
             const now = new Date();
             document.getElementById('val-updated').textContent =
                 `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        } catch (e) { console.error('感知情報の取得に失敗:', e); }
+    }
+
+    function startLivePolling() {
+        if (liveTimer) return;
+        pollKanchi();
+        liveTimer = setInterval(pollKanchi, 10000);
+    }
+    function stopLivePolling() {
+        if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+    }
+
+    /* =========================================================
+       過去再生モード
+    ========================================================= */
+    let quakeListLoaded = false;
+    let selectedQuake = null;
+    let playbackState = null;      // { raw:[], evals:[], origin: Date }
+    let currentOffsetSec = -30;
+    let autoplayTimer = null;
+    let rawLayerPB = L.layerGroup();
+    let evalLayerPB = L.layerGroup();
+
+    async function loadQuakeList() {
+        if (quakeListLoaded) return;
+        const statusEl = document.getElementById('playback-status');
+        const listEl = document.getElementById('quake-list');
+        statusEl.textContent = '地震一覧を取得中…';
+        try {
+            const res = await fetch('https://api.p2pquake.net/v2/jma/quake?limit=20&order=-1');
+            const quakes = await res.json();
+            listEl.innerHTML = '';
+            quakes.forEach(q => {
+                const eq = q.earthquake;
+                if (!eq) return;
+                const t = parseApiTime(eq.time);
+                const item = document.createElement('div');
+                item.className = 'quake-item';
+                item.innerHTML = `
+                    <div class="ql-scale-badge">${scaleLabelMap[String(eq.maxScale)] || '?'}</div>
+                    <div class="ql-info">
+                        <div class="ql-time">${t ? (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : eq.time}</div>
+                        <div class="ql-place">${eq.hypocenter ? eq.hypocenter.name : '震源不明'}（M${eq.hypocenter ? eq.hypocenter.magnitude : '-'}）</div>
+                    </div>`;
+                item.addEventListener('click', () => selectQuake(q, item));
+                listEl.appendChild(item);
+            });
+            statusEl.textContent = '再生したい地震を選んでください（直近1週間程度の地震のみ感知データを取得できます）';
         } catch (e) {
-            console.error('感知情報の取得に失敗:', e);
+            statusEl.textContent = '地震一覧の取得に失敗しました。';
+            console.error(e);
+        }
+        quakeListLoaded = true;
+    }
+
+    async function selectQuake(quake, itemEl) {
+        document.querySelectorAll('.quake-item').forEach(el => el.classList.remove('selected'));
+        if (itemEl) itemEl.classList.add('selected');
+
+        selectedQuake = quake;
+        const eq = quake.earthquake;
+        const originTime = parseApiTime(eq.time);
+
+        document.getElementById('quake-list').style.display = 'none';
+        document.getElementById('playback-status').style.display = 'none';
+        document.getElementById('quake-detail').style.display = 'block';
+        document.getElementById('selected-quake-summary').innerHTML =
+            `${eq.time}<br>${eq.hypocenter ? eq.hypocenter.name : '震源不明'}　M${eq.hypocenter ? eq.hypocenter.magnitude : '-'}　最大震度${scaleLabelMap[String(eq.maxScale)] || '不明'}`;
+        document.getElementById('playback-controls').style.display = 'none';
+
+        pausePlay();
+        rawLayerPB.clearLayers();
+        evalLayerPB.clearLayers();
+        rawLayerPB.addTo(map);
+        evalLayerPB.addTo(map);
+
+        const searchStatusEl = document.getElementById('search-status');
+        searchStatusEl.textContent = '感知データを検索中…';
+
+        if (!originTime) { searchStatusEl.textContent = '地震の発生時刻を取得できませんでした。'; return; }
+
+        const targetStart = new Date(originTime.getTime() - 30 * 1000);
+        const targetEnd = new Date(originTime.getTime() + 90 * 1000);
+
+        const result = await fetchPlaybackWindow(targetStart, targetEnd, searchStatusEl);
+
+        if (result.raw.length === 0 && result.evals.length === 0) {
+            searchStatusEl.textContent = 'この地震の感知データは見つかりませんでした（1週間より古い、または報告がない可能性があります）。';
+            return;
+        }
+
+        searchStatusEl.textContent = `報告 ${result.raw.length}件 / 評価更新 ${result.evals.length}件 を再生できます`;
+
+        playbackState = {
+            origin: originTime,
+            raw: result.raw.map(r => ({ ...r, relSec: (parseApiTime(r.time) - originTime) / 1000 })),
+            evals: result.evals.map(e => ({ ...e, relSec: (parseApiTime(e.time) - originTime) / 1000 }))
+        };
+
+        currentOffsetSec = -30;
+        document.getElementById('playback-slider').value = -30;
+        document.getElementById('playback-controls').style.display = 'block';
+        renderPlaybackFrame(-30);
+    }
+
+    document.getElementById('back-to-list').addEventListener('click', () => {
+        pausePlay();
+        document.getElementById('quake-detail').style.display = 'none';
+        document.getElementById('quake-list').style.display = 'block';
+        document.getElementById('playback-status').style.display = 'block';
+        rawLayerPB.clearLayers();
+        evalLayerPB.clearLayers();
+        setStandbyHeader();
+    });
+
+    // offset を進めながら /history をページ送りし、対象時間帯のレコードを収集
+    async function fetchPlaybackWindow(targetStart, targetEnd, statusEl) {
+        const collected561 = [];
+        const collected9611 = [];
+        const pageSize = 100;
+        const maxPages = 25;
+        let offset = 0;
+
+        for (let page = 0; page < maxPages; page++) {
+            const url = `https://api.p2pquake.net/v2/history?codes=561&codes=9611&limit=${pageSize}&offset=${offset}&order=-1`;
+            let data;
+            try {
+                const res = await fetch(url);
+                data = await res.json();
+            } catch (e) { break; }
+            if (!Array.isArray(data) || data.length === 0) break;
+
+            let pageOldest = null;
+            data.forEach(item => {
+                const t = parseApiTime(item.time);
+                if (!t) return;
+                if (!pageOldest || t < pageOldest) pageOldest = t;
+                if (t >= targetStart && t <= targetEnd) {
+                    if (item.code === 561) collected561.push(item);
+                    else if (item.code === 9611) collected9611.push(item);
+                }
+            });
+
+            if (statusEl) {
+                statusEl.textContent = `検索中…（${page + 1}ページ目 / ${pageOldest ? pageOldest.getMonth() + 1 + '/' + pageOldest.getDate() + ' ' + String(pageOldest.getHours()).padStart(2, '0') + ':' + String(pageOldest.getMinutes()).padStart(2, '0') : ''} まで確認）`;
+            }
+
+            if (pageOldest && pageOldest < targetStart) break;
+            offset += pageSize;
+            await sleep(200);
+        }
+
+        collected561.sort((a, b) => parseApiTime(a.time) - parseApiTime(b.time));
+        collected9611.sort((a, b) => parseApiTime(a.time) - parseApiTime(b.time));
+        return { raw: collected561, evals: collected9611 };
+    }
+
+    function renderPlaybackFrame(offsetSec) {
+        if (!playbackState) return;
+        rawLayerPB.clearLayers();
+        playbackState.raw.filter(r => r.relSec <= offsetSec).forEach(r => {
+            const meta = areaMaster[String(r.area)];
+            if (!meta) return;
+            L.circleMarker([meta.lat, meta.lng], {
+                radius: 5, color: '#0d1b2a', weight: 1, fillColor: '#ffffff', fillOpacity: 0.85
+            }).addTo(rawLayerPB);
+        });
+
+        let activeEval = null;
+        playbackState.evals.forEach(e => { if (e.relSec <= offsetSec) activeEval = e; });
+
+        evalLayerPB.clearLayers();
+        if (activeEval && activeEval.area_confidences) {
+            drawConfidenceAreas(evalLayerPB, activeEval.area_confidences);
+            const areaCount = Object.keys(activeEval.area_confidences).length;
+            const grade = gradeFromConfidence(activeEval.confidence);
+            setHeader({
+                grade, caption: gradeCaptions[grade],
+                countText: `（再生中）報告数 ${activeEval.count ?? '-'}件 / 対象 ${areaCount}地域`,
+                statusText: '過去再生中', statusColor: gradeColors[grade], pulse: false
+            });
+        } else {
+            setHeader({
+                grade: '-', caption: '評価待ち',
+                countText: `（再生中）累積報告 ${playbackState.raw.filter(r => r.relSec <= offsetSec).length}件`,
+                statusText: '過去再生中', statusColor: '#9fb3d1', pulse: false
+            });
+        }
+
+        const eqTime = selectedQuake && selectedQuake.earthquake ? selectedQuake.earthquake.time : '';
+        document.getElementById('val-time').innerHTML = `地震発生 ${eqTime}`;
+
+        document.getElementById('playback-time-label').textContent = formatOffset(offsetSec);
+        document.getElementById('playback-slider').value = offsetSec;
+    }
+
+    document.getElementById('playback-slider').addEventListener('input', e => {
+        pausePlay();
+        currentOffsetSec = parseFloat(e.target.value);
+        renderPlaybackFrame(currentOffsetSec);
+    });
+
+    document.getElementById('play-btn').addEventListener('click', () => {
+        if (autoplayTimer) pausePlay(); else startPlay();
+    });
+
+    function startPlay() {
+        if (!playbackState) return;
+        if (currentOffsetSec >= 90) currentOffsetSec = -30;
+        document.getElementById('play-btn').textContent = '⏸';
+        autoplayTimer = setInterval(() => {
+            currentOffsetSec += 1; // 約5倍速（200msごとに1秒進める）
+            if (currentOffsetSec >= 90) {
+                currentOffsetSec = 90;
+                renderPlaybackFrame(90);
+                pausePlay();
+                return;
+            }
+            renderPlaybackFrame(currentOffsetSec);
+        }, 200);
+    }
+    function pausePlay() {
+        if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+        document.getElementById('play-btn').textContent = '▶';
+    }
+
+    /* =========================================================
+       モード切替
+    ========================================================= */
+    function setMode(mode) {
+        document.getElementById('mode-live').classList.toggle('active', mode === 'live');
+        document.getElementById('mode-playback').classList.toggle('active', mode === 'playback');
+        document.getElementById('playback-panel').style.display = mode === 'playback' ? 'block' : 'none';
+
+        if (mode === 'live') {
+            pausePlay();
+            map.removeLayer(rawLayerPB);
+            map.removeLayer(evalLayerPB);
+            document.getElementById('lbl-time').textContent = '感知開始';
+            document.getElementById('lbl-count').textContent = '報告状況';
+            document.getElementById('lbl-status').textContent = '状態';
+            document.getElementById('lbl-updated').style.display = '';
+            document.getElementById('val-updated').style.display = '';
+            startLivePolling();
+        } else {
+            stopLivePolling();
+            rawLayer.clearLayers();
+            evalLayer.clearLayers();
+            currentEventId = null;
+            document.getElementById('lbl-time').textContent = '対象の地震';
+            document.getElementById('lbl-count').textContent = '再生状況';
+            document.getElementById('lbl-status').textContent = 'モード';
+            document.getElementById('lbl-updated').style.display = 'none';
+            document.getElementById('val-updated').style.display = 'none';
+            setHeader({ grade: '-', caption: '選択待ち', countText: '地震を選択してください', statusText: '過去再生', statusColor: '#9fb3d1', pulse: false });
+            loadQuakeList();
         }
     }
+
+    document.getElementById('mode-live').addEventListener('click', () => setMode('live'));
+    document.getElementById('mode-playback').addEventListener('click', () => setMode('playback'));
 
     async function init() {
         setStandbyHeader();
         await loadAreaMaster();
         await loadBaseMap();
-        await pollKanchi();
-        setInterval(pollKanchi, 10000); // 10秒ごとに更新
+        startLivePolling();
     }
 
     init();
