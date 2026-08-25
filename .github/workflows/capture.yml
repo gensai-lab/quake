@@ -49,7 +49,7 @@ jobs:
               await new Promise(resolve => setTimeout(resolve, 5000));
               
               // 保存先フォルダの作成確認
-              const dir = './output';
+              const dir = './output2';
               if (!fs.existsSync(dir)){
                   fs.mkdirSync(dir);
               }
@@ -64,6 +64,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add output/
+          git add output2/
           git commit -m "Add earthquake screenshot for id: ${{ github.event.client_payload.id }}" || exit 0
           git push
