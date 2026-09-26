@@ -469,6 +469,27 @@
         return [center.lat, center.lng];
     }
 
+    // 細分区域名を内部的な正規名へ統一する。
+    // CSV・GeoJSON・例外マスタなどで「熊本県熊本」「熊本県熊本地方」
+    // のような表記差があっても、同じ細分区域として1つにまとめる。
+    function normalizeSaibunName(name) {
+        if (!name) return null;
+
+        let n = String(name).trim().replace(/\s+/g, '');
+
+        const aliases = {
+            '熊本地方': '熊本県熊本',
+            '熊本県熊本地方': '熊本県熊本',
+            '熊本県熊本': '熊本県熊本',
+            '熊本県阿蘇地方': '熊本県阿蘇',
+            '熊本県球磨地方': '熊本県球磨',
+            '熊本県天草芦北': '熊本県天草・芦北',
+            '熊本県天草・芦北地方': '熊本県天草・芦北'
+        };
+
+        return aliases[n] || n;
+    }
+
     function convertToSaibunNameWithPref(prefName, addrName) {
         if (!prefName || !addrName) return null;
 
@@ -535,91 +556,47 @@
     /**
      * 前後の情報（第1報の震度速報と第2報の震源情報など）を引き継ぎ・補完マージする関数
      */
-    /**
-     * 同一地震に属する複数の電文を統合します。
-     *
-     * 重要:
-     * - 同じ観測点が複数電文に存在する場合は、古い値を残さず後から得られた値で更新する。
-     * - earth.maxScale は電文の最大震度をそのまま信用せず、最終的には統合後の points から再計算する。
-     * - これにより「観測点には震度4がないのに maxScale=40 のため震度4になる」問題を防止する。
-     */
     function mergeQuakeReports(targetEq, allData) {
         const merged = JSON.parse(JSON.stringify(targetEq));
-
-        if (!merged.earthquake) return merged;
-
+        
         const targetTime = merged.earthquake.time;
         if (!targetTime) return merged;
 
         const targetMinKey = targetTime.substring(0, 16);
 
-        const relatedReports = allData
-            .filter(item => {
-                if (!item || item.id === merged.id || !item.earthquake || !item.earthquake.time) return false;
+        const relatedReports = allData.filter(item => {
+            if (!item.earthquake || !item.earthquake.time) return false;
+            const itemMinKey = item.earthquake.time.substring(0, 16);
+            
+            if (item.id === merged.id) return false;
 
-                const itemMinKey = item.earthquake.time.substring(0, 16);
-                const isSameTime = itemMinKey === targetMinKey;
+            const isSameTime = (itemMinKey === targetMinKey);
+            
+            const isSameHypocenter = (merged.earthquake.hypocenter.name && item.earthquake.hypocenter.name) 
+                ? (merged.earthquake.hypocenter.name === item.earthquake.hypocenter.name) 
+                : true;
 
-                const mergedHypocenter = merged.earthquake.hypocenter?.name;
-                const itemHypocenter = item.earthquake.hypocenter?.name;
+            return isSameTime && isSameHypocenter;
+        });
 
-                const isSameHypocenter = (mergedHypocenter && itemHypocenter)
-                    ? mergedHypocenter === itemHypocenter
-                    : true;
+        relatedReports.forEach(report => {
+            if ((merged.earthquake.maxScale === 0 || !merged.earthquake.maxScale) && report.earthquake.maxScale > 0) {
+                merged.earthquake.maxScale = report.earthquake.maxScale;
+            }
 
-                return isSameTime && isSameHypocenter;
-            })
-            // history API は通常新しいものが先ですが、念のため時刻順に並べ、
-            // 後の電文ほど新しい観測値として扱います。
-            .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
-
-        // 観測点を「都道府県 + 観測点名」で一意に管理する。
-        const pointMap = new Map();
-
-        const addPoints = (points) => {
-            if (!Array.isArray(points)) return;
-
-            points.forEach(p => {
-                if (!p || !p.addr || !p.pref || typeof p.scale !== 'number') return;
-
-                const key = `${p.pref}\u0000${p.addr}`;
-                pointMap.set(key, p);
-            });
-        };
-
-        // 最初に対象電文を入れ、その後関連電文で同じ観測点を更新する。
-        addPoints(merged.points);
-        relatedReports.forEach(report => addPoints(report.points));
-
-        merged.points = Array.from(pointMap.values());
-
-        // APIの maxScale ではなく、実際に統合された観測点から最大震度を算出。
-        const observedScales = merged.points
-            .map(p => Number(p.scale))
-            .filter(scale => Number.isFinite(scale) && intensityMap[String(scale)]);
-
-        if (observedScales.length > 0) {
-            merged.earthquake.maxScale = Math.max(...observedScales);
-        } else {
-            // 観測点がない場合は、API値を表示に利用せず 0（未観測扱い）にする。
-            merged.earthquake.maxScale = 0;
-        }
+            if (report.points && report.points.length > 0) {
+                if (!merged.points) merged.points = [];
+                
+                report.points.forEach(p => {
+                    const isExist = merged.points.some(mp => mp.addr === p.addr && mp.pref === p.pref);
+                    if (!isExist) {
+                        merged.points.push(p);
+                    }
+                });
+            }
+        });
 
         return merged;
-    }
-
-    /**
-     * 実際の観測点データから最大震度を取得します。
-     * earth.maxScale を使わないことで、表示と観測点の食い違いを防ぎます。
-     */
-    function calculateObservedMaxScale(points) {
-        if (!Array.isArray(points)) return 0;
-
-        const validScales = points
-            .map(p => Number(p?.scale))
-            .filter(scale => Number.isFinite(scale) && intensityMap[String(scale)]);
-
-        return validScales.length > 0 ? Math.max(...validScales) : 0;
     }
 
     async function fetchQuakeData() {
@@ -659,13 +636,8 @@
 
     async function renderEarthquake(eq, customZoom) {
         const earth = eq.earthquake;
-        const points = Array.isArray(eq.points) ? eq.points : [];
+        const points = eq.points || [];
         const hypocenterName = earth.hypocenter.name || "震源不詳";
-
-        // 表示用の最大震度は必ず実際の観測点から再計算する。
-        // API の earth.maxScale が誤っていても、画面表示には影響しません。
-        const observedMaxScale = calculateObservedMaxScale(points);
-        earth.maxScale = observedMaxScale;
         
         let epicenterLat = earth.hypocenter.latitude;
         let epicenterLng = earth.hypocenter.longitude;
@@ -694,13 +666,20 @@
             document.getElementById('val-depth').innerText = earth.hypocenter.depth === -1 ? "深さ不明" : "ごく浅い";
         }
 
-        const maxInt = String(observedMaxScale);
+        // ヘッダーの最大震度も、実際の観測点から算出した値を優先する。
+        // P2P側の maxScale は補助値として、観測点が存在しない場合のみ使用する。
+        const observedMaxScale = points.reduce((max, p) => {
+            const scale = Number(p.scale);
+            return intensityMap[String(scale)] ? Math.max(max, scale) : max;
+        }, 0);
+        const maxInt = String(observedMaxScale || Number(earth.maxScale) || 0);
+
         document.getElementById('max-intensity-banner').style.backgroundImage = `url('assets/banner/${intensityMap[maxInt] ? intensityMap[maxInt].banner : 'b0.svg'}')`;
 
         const domesticTsunami = earth.domesticTsunami || "None";
         document.getElementById('banner-tsunami').src = `assets/banner/${tsunamiMap[domesticTsunami] || 't2.svg'}`;
 
-        const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || observedMaxScale === 0;
+        const isEnchi = shingenMaster[hypocenterName] === true || hypocenterName.includes("遠地") || domesticTsunami === "Checking" || earth.maxScale === 0;
         if (isEnchi) document.getElementById('banner-enchi').classList.remove('dimmed');
         else document.getElementById('banner-enchi').classList.add('dimmed');
 
@@ -714,31 +693,57 @@
             }).addTo(map).setZIndexOffset(50);
         }
 
+        // 細分区域ごとの最大震度。
+        // 観測点が複数あっても、同じ細分区域は必ず1つのキーに統合する。
         const saibunMaxScale = {};
+
         points.forEach(p => {
-            const prefName = p.pref; 
-            const addrName = p.addr ? p.addr.trim() : ""; 
-            const scale = p.scale;
+            const prefName = p.pref ? String(p.pref).trim() : "";
+            const addrName = p.addr ? String(p.addr).trim() : "";
+            const scale = Number(p.scale);
+
+            if (!intensityMap[String(scale)]) return;
 
             let saibunName = null;
 
+            // 観測点名そのものが細分区域名の場合
             if (saibunFeatures[addrName]) {
                 saibunName = addrName;
-            } 
-            else if (saibunFeatures[addrName.replace(prefName, "")]) {
+            }
+            // 都道府県名付きの細分区域名の場合
+            else if (prefName && saibunFeatures[addrName.replace(prefName, "")]) {
                 saibunName = addrName.replace(prefName, "");
             }
+            // 観測点 → 市区町村 → 細分区域のマッピング
             else {
                 saibunName = convertToSaibunNameWithPref(prefName, addrName);
             }
 
-            if (saibunName) {
-                const targetKey = saibunName.trim();
-                if (saibunFeatures[targetKey]) {
-                    if (!saibunMaxScale[targetKey] || scale > saibunMaxScale[targetKey]) {
-                        saibunMaxScale[targetKey] = scale;
-                    }
+            // 表記揺れを正規化してからGeoJSONの正式キーへ解決
+            const normalizedName = normalizeSaibunName(saibunName);
+            if (!normalizedName) return;
+
+            // 正規名そのものがGeoJSONにある場合
+            let targetKey = normalizedName;
+
+            // 正規化後の名前がGeoJSONに無い場合は、元の名前も試す
+            if (!saibunFeatures[targetKey] && saibunName) {
+                const rawName = String(saibunName).trim();
+                if (saibunFeatures[rawName]) {
+                    targetKey = rawName;
+                } else {
+                    return;
                 }
+            }
+
+            // 同じ細分区域に複数の観測点がある場合は最大震度だけを保持。
+            // これにより、同一細分区域に震度3の観測点が6点あっても、
+            // 地図上の震度3アイコンは1個だけになる。
+            if (
+                !Object.prototype.hasOwnProperty.call(saibunMaxScale, targetKey) ||
+                scale > saibunMaxScale[targetKey]
+            ) {
+                saibunMaxScale[targetKey] = scale;
             }
         });
 
